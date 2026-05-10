@@ -1,4 +1,4 @@
-project('mesonfe', version: '0.0.1', license: 'MIT', meson_version: '>= 0.56.0')
+project('mesonfe', version: '0.0.1', license: 'MIT', meson_version: '>= 0.57.0')
 
 install_data(
     meson.project_name(),
@@ -42,6 +42,12 @@ configure_file(
     configuration: {'NAME': meson.project_name()},
     install: true,
     install_dir: get_option('datadir') / 'applications',
+)
+
+gnome = import('gnome')
+gnome.post_install(
+    gtk_update_icon_cache: true,
+    update_desktop_database: true,
 )
 
 pytest = find_program('pytest', required: false)
