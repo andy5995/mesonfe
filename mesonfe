@@ -196,7 +196,7 @@ def save_recent_dirs(dirs: list):
 
 
 def add_recent_dir(builddir: Path) -> list:
-    entry = str(builddir.resolve())
+    entry = str(builddir.resolve(strict=False))
     dirs = [d for d in load_recent_dirs() if d != entry]
     dirs.insert(0, entry)
     dirs = dirs[:_RECENT_MAX]
@@ -658,7 +658,7 @@ class MainWindow(QMainWindow):
         self._options = options
         self._setups = setups
         self._source_dir = source_dir
-        label = f'{project_name}  |  {self._builddir.resolve().name}' if project_name else self._builddir.resolve().name
+        label = f'{project_name}  |  {self._builddir.resolve(strict=False).name}' if project_name else self._builddir.resolve(strict=False).name
         self._status_label.setText(label)
         defaults = parse_defaults(source_dir) if source_dir else {}
 
@@ -830,7 +830,7 @@ class MainWindow(QMainWindow):
             return
 
         d_args = [f'-D{k}={v}' for k, v in rc_options.items()]
-        builddir = str(self._builddir.resolve())
+        builddir = str(self._builddir.resolve(strict=False))
         has_build = (self._builddir / 'meson-info').exists()
         args = ['setup', str(self._source_dir), builddir] + (['--reconfigure'] + d_args if has_build else d_args)
         dlg = MesonSetupDialog(self, args)
