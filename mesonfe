@@ -553,6 +553,9 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.TopDockWidgetArea, self._changed_dock)
         self._changed_dock.hide()
 
+        self._status_label = QLabel()
+        self.statusBar().addPermanentWidget(self._status_label)
+
         if builddir is not None:
             self._rebuild()
         else:
@@ -561,7 +564,7 @@ class MainWindow(QMainWindow):
             lbl.setAlignment(Qt.AlignCenter)
             QVBoxLayout(placeholder).addWidget(lbl)
             self.setCentralWidget(placeholder)
-            self.statusBar().showMessage('No build directory')
+            self._status_label.setText('No build directory')
 
     def _rebuild(self):
         if self._builddir:
@@ -572,7 +575,7 @@ class MainWindow(QMainWindow):
         self._setups = setups
         self._source_dir = source_dir
         label = f'{project_name}  |  {self._builddir.resolve().name}' if project_name else self._builddir.resolve().name
-        self.statusBar().showMessage(label)
+        self._status_label.setText(label)
         defaults = parse_defaults(source_dir) if source_dir else {}
 
         root_w = QWidget()
