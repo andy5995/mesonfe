@@ -614,11 +614,12 @@ class MainWindow(QMainWindow):
         self._setup_rc_action = build_menu.addAction('Setup from .mesonferc')
         self._setup_rc_action.triggered.connect(self._setup_from_mesonferc)
         self._setup_rc_action.setEnabled(False)
-        build_menu.addSeparator()
-        self._compile_action = build_menu.addAction('Compile…')
+
+        meson_menu = self.menuBar().addMenu('Meson')
+        self._compile_action = meson_menu.addAction('Compile…')
         self._compile_action.triggered.connect(self._run_compile)
         self._compile_action.setEnabled(False)
-        self._install_action = build_menu.addAction('Install…')
+        self._install_action = meson_menu.addAction('Install…')
         self._install_action.triggered.connect(self._run_install)
         self._install_action.setEnabled(False)
 
