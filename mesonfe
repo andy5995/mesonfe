@@ -257,6 +257,7 @@ class TestRunSelectDialog(QDialog):
         self.resize(360, 320)
         layout = QVBoxLayout(self)
 
+        self._changing = False
         self._list = QListWidget()
         for i, (label, args) in enumerate(items):
             item = QListWidgetItem(label)
@@ -264,6 +265,7 @@ class TestRunSelectDialog(QDialog):
             item.setCheckState(Qt.Checked if i == 0 else Qt.Unchecked)
             item.setData(Qt.UserRole, args)
             self._list.addItem(item)
+        self._list.itemChanged.connect(self._on_item_changed)
         layout.addWidget(self._list)
 
         self._verbose = QCheckBox('Verbose')
@@ -278,6 +280,18 @@ class TestRunSelectDialog(QDialog):
         btns.addWidget(run_btn)
         btns.addWidget(cancel_btn)
         layout.addLayout(btns)
+
+    def _on_item_changed(self, changed_item):
+        if self._changing:
+            return
+        self._changing = True
+        default_item = self._list.item(0)
+        if changed_item is default_item and changed_item.checkState() == Qt.Checked:
+            for i in range(1, self._list.count()):
+                self._list.item(i).setCheckState(Qt.Unchecked)
+        elif changed_item is not default_item and changed_item.checkState() == Qt.Checked:
+            default_item.setCheckState(Qt.Unchecked)
+        self._changing = False
 
     def selected(self):
         runs = [
