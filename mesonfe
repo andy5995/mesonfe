@@ -68,13 +68,17 @@ def load_project_data(builddir: Path):
     info_dir = builddir / 'meson-info'
     options = read_json(info_dir / 'intro-buildoptions.json') or []
     source_dir = None
+    project_name = None
     info = read_json(info_dir / 'meson-info.json')
     if info:
         src = info.get('directories', {}).get('source')
         if src:
             source_dir = Path(src)
+    proj = read_json(info_dir / 'intro-projectinfo.json')
+    if proj:
+        project_name = proj.get('descriptive_name')
     test_setups = find_test_setups(builddir)
-    return options, test_setups, source_dir
+    return options, test_setups, source_dir, project_name
 
 
 def parse_defaults(source_dir: Path) -> dict:
@@ -395,10 +399,12 @@ class MainWindow(QMainWindow):
         self._rebuild()
 
     def _rebuild(self):
-        options, setups, source_dir = load_project_data(self._builddir)
+        options, setups, source_dir, project_name = load_project_data(self._builddir)
         self._options = options
         self._setups = setups
         self._source_dir = source_dir
+        label = f'{project_name}  |  {self._builddir.resolve().name}' if project_name else self._builddir.resolve().name
+        self.statusBar().showMessage(label)
         defaults = parse_defaults(source_dir) if source_dir else {}
 
         root_w = QWidget()

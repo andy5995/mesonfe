@@ -304,12 +304,14 @@ def test_find_test_setups_missing_source_file(tmp_path):
 # load_project_data
 # ---------------------------------------------------------------------------
 
-def _make_info_dir(tmp_path, options=None, meson_info=None, build_files=None):
+def _make_info_dir(tmp_path, options=None, meson_info=None, build_files=None, project_info=None):
     info = tmp_path / 'meson-info'
     info.mkdir(exist_ok=True)
     (info / 'intro-buildoptions.json').write_text(json.dumps(options or []))
     (info / 'meson-info.json').write_text(json.dumps(meson_info or {}))
     (info / 'intro-buildsystem_files.json').write_text(json.dumps(build_files or []))
+    if project_info is not None:
+        (info / 'intro-projectinfo.json').write_text(json.dumps(project_info))
     return info
 
 
@@ -318,23 +320,26 @@ def test_load_project_data_full(tmp_path):
     mb.write_text("add_test_setup('One_pass')\n")
     options = [{'name': 'opt1', 'type': 'boolean', 'value': True}]
     meson_info = {'directories': {'source': str(tmp_path / 'src')}}
-    _make_info_dir(tmp_path, options=options, meson_info=meson_info, build_files=[str(mb)])
+    _make_info_dir(tmp_path, options=options, meson_info=meson_info, build_files=[str(mb)],
+                   project_info={'descriptive_name': 'myproject'})
 
-    opts, ts, src = load_project_data(tmp_path)
+    opts, ts, src, name = load_project_data(tmp_path)
     assert opts == options
     assert ts == ['One_pass']
     assert src == tmp_path / 'src'
+    assert name == 'myproject'
 
 
 def test_load_project_data_missing_files(tmp_path):
     (tmp_path / 'meson-info').mkdir()
-    opts, ts, src = load_project_data(tmp_path)
+    opts, ts, src, name = load_project_data(tmp_path)
     assert opts == []
     assert ts == []
     assert src is None
+    assert name is None
 
 
 def test_load_project_data_no_source_dir_key(tmp_path):
     _make_info_dir(tmp_path, meson_info={'directories': {}})
-    _, _, src = load_project_data(tmp_path)
+    _, _, src, _ = load_project_data(tmp_path)
     assert src is None
