@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
-    QListWidget, QListWidgetItem, QCheckBox,
+    QListWidget, QListWidgetItem, QCheckBox, QDockWidget,
 )
 from PyQt5.QtCore import Qt, QProcess
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette
@@ -429,6 +429,13 @@ class MainWindow(QMainWindow):
         help_menu = self.menuBar().addMenu('Help')
         help_menu.addAction('About').triggered.connect(self._show_about)
 
+        self._changed_dock = QDockWidget('Changed from defaults', self)
+        self._changed_dock.setAllowedAreas(Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea)
+        self._changed_dock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
+        self._changed_dock.topLevelChanged.connect(self._on_changed_dock_float)
+        self.addDockWidget(Qt.TopDockWidgetArea, self._changed_dock)
+        self._changed_dock.hide()
+
         self._rebuild()
 
     def _rebuild(self):
@@ -466,25 +473,25 @@ class MainWindow(QMainWindow):
         )
 
         if changed:
-            grp = QGroupBox('Changed from defaults')
-            gl = QVBoxLayout(grp)
-            gl.setContentsMargins(8, 8, 8, 8)
             tbl = QTableWidget(len(changed), 3)
             tbl.setHorizontalHeaderLabels(['Option', 'Current value', 'Default'])
             tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
             tbl.setEditTriggers(QTableWidget.NoEditTriggers)
             tbl.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            row_h = tbl.verticalHeader().defaultSectionSize()
-            header_h = tbl.horizontalHeader().sizeHint().height()
-            grp.setMaximumHeight(4 * row_h + header_h + 48)  # 48 for groupbox title + margins
             for r, (opt, dflt) in enumerate(changed):
                 tbl.setItem(r, 0, QTableWidgetItem(opt['name']))
                 cur = QTableWidgetItem(str(opt['value']))
                 cur.setForeground(QColor('#ff6b6b'))
                 tbl.setItem(r, 1, cur)
                 tbl.setItem(r, 2, QTableWidgetItem('—' if dflt is None else str(dflt)))
-            gl.addWidget(tbl)
-            layout.addWidget(grp)
+            row_h = tbl.verticalHeader().defaultSectionSize()
+            header_h = tbl.horizontalHeader().sizeHint().height()
+            self._changed_max_h = 4 * row_h + header_h
+            tbl.setMaximumHeight(self._changed_max_h)
+            self._changed_dock.setWidget(tbl)
+            self._changed_dock.show()
+        else:
+            self._changed_dock.hide()
 
         # Build test items for the menu action
         suites = find_test_suites(self._builddir)
@@ -605,6 +612,14 @@ class MainWindow(QMainWindow):
         dlg = MesonSetupDialog(self, args)
         dlg.exec_()
         self._rebuild()
+
+    def _on_changed_dock_float(self, floating):
+        tbl = self._changed_dock.widget()
+        if tbl:
+            tbl.setMaximumHeight(16777215 if floating else self._changed_max_h)
+        self._changed_dock.setStyleSheet(
+            'QDockWidget { border-top: 4px solid #8ec6f0; border-left: 4px solid #8ec6f0; border-bottom: 4px solid #2a5a8a; border-right: 4px solid #2a5a8a; }' if floating else ''
+        )
 
     def _show_about(self):
         QMessageBox.about(
