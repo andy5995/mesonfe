@@ -1,0 +1,327 @@
+#!/usr/bin/env python3
+
+import sys
+import json
+import subprocess
+import re
+from pathlib import Path
+
+from PyQt5.QtWidgets import (
+    QAbstractScrollArea, QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
+    QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
+)
+from PyQt5.QtCore import Qt, QProcess
+from PyQt5.QtGui import QFont, QColor, QTextCursor
+
+
+def find_builddir() -> Path:
+    if len(sys.argv) > 1:
+        return Path(sys.argv[1])
+    for base in (Path('.'), Path('..')):
+        rc = base / '.mesonferc'
+        if rc.exists():
+            for line in rc.read_text().splitlines():
+                line = line.strip()
+                if line.startswith('#') or '=' not in line:
+                    continue
+                key, _, val = line.partition('=')
+                if key.strip() == 'default_builddir':
+                    return base / val.strip().strip('"')
+            return base / '_build'
+    return Path('_build')
+
+
+def read_json(path: Path):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def load_project_data(builddir: Path):
+    info_dir = builddir / 'meson-info'
+    options = read_json(info_dir / 'intro-buildoptions.json') or []
+    test_setups = read_json(info_dir / 'intro-test-setups.json') or {}
+    source_dir = None
+    info = read_json(info_dir / 'meson-info.json')
+    if info:
+        src = info.get('directories', {}).get('source')
+        if src:
+            source_dir = Path(src)
+    return options, test_setups, source_dir
+
+
+def parse_defaults(source_dir: Path) -> dict:
+    defaults = {}
+    for fname in ('meson.options', 'meson_options.txt'):
+        f = source_dir / fname
+        if not f.exists():
+            continue
+        for m in re.finditer(r"option\s*\(\s*'([^']+)'([^)]*)\)", f.read_text(), re.DOTALL):
+            name, body = m.group(1), m.group(2)
+            vm = re.search(r"\bvalue\s*:\s*(['\"]?)([^,)'\"]+)\1", body)
+            if not vm:
+                continue
+            raw = vm.group(2).strip()
+            if raw == 'true':
+                defaults[name] = True
+            elif raw == 'false':
+                defaults[name] = False
+            elif re.fullmatch(r'-?\d+', raw):
+                defaults[name] = int(raw)
+            else:
+                defaults[name] = raw
+        break
+    return defaults
+
+
+def parse_cmd_line(builddir: Path) -> set:
+    path = builddir / 'meson-private' / 'cmd_line.txt'
+    if not path.exists():
+        return set()
+    in_options = False
+    names = set()
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if line == '[options]':
+            in_options = True
+        elif line.startswith('['):
+            in_options = False
+        elif in_options and '=' in line:
+            key = line.split('=')[0].strip()
+            if ':' not in key:  # skip subproject options like foo:bar
+                names.add(key)
+    return names
+
+
+class TestOutputDialog(QDialog):
+    def __init__(self, parent: QWidget, name: str, builddir: Path):
+        super().__init__(parent)
+        self.setWindowTitle(f'Test setup: {name}')
+        self.resize(720, 480)
+
+        layout = QVBoxLayout(self)
+
+        self._out = QTextEdit()
+        self._out.setReadOnly(True)
+        self._out.setFont(QFont('monospace', 10))
+        layout.addWidget(self._out)
+
+        self._btn = QPushButton('Close')
+        self._btn.setEnabled(False)
+        self._btn.clicked.connect(self.accept)
+        layout.addWidget(self._btn)
+
+        self._proc = QProcess(self)
+        self._proc.setMergedChannels(True)
+        self._proc.readyRead.connect(
+            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
+        )
+        self._proc.finished.connect(self._on_finished)
+        self._proc.start('meson', ['test', '--setup', name, '-C', str(builddir)])
+
+    def _append(self, text: str):
+        self._out.moveCursor(QTextCursor.End)
+        self._out.insertPlainText(text)
+
+    def _on_finished(self, code: int, _status):
+        self._append(f'\n[exited {code}]')
+        self._btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        if self._proc.state() != QProcess.NotRunning:
+            self._proc.kill()
+            self._proc.waitForFinished(2000)
+        super().closeEvent(event)
+
+
+class ValueWidget(QWidget):
+    def __init__(self, opt: dict):
+        super().__init__()
+        self._opt = opt
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(2, 1, 2, 1)
+        layout.setSpacing(0)
+
+        t, v = opt['type'], opt['value']
+
+        if t == 'boolean':
+            self._w = QComboBox()
+            self._w.addItems(['true', 'false'])
+            self._w.setCurrentText('true' if v else 'false')
+        elif t in ('combo', 'feature'):
+            self._w = QComboBox()
+            choices = opt.get('choices') or (['enabled', 'disabled', 'auto'] if t == 'feature' else [])
+            self._w.addItems([str(c) for c in choices])
+            self._w.setCurrentText(str(v))
+        elif t == 'array':
+            self._w = QLineEdit(','.join(v) if isinstance(v, list) else str(v))
+        else:
+            self._w = QLineEdit(str(v))
+
+        layout.addWidget(self._w)
+
+    def current(self) -> str:
+        return self._w.currentText() if isinstance(self._w, QComboBox) else self._w.text()
+
+    def original(self) -> str:
+        v = self._opt['value']
+        if isinstance(v, bool):
+            return 'true' if v else 'false'
+        if isinstance(v, list):
+            return ','.join(str(x) for x in v)
+        return str(v)
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, builddir: Path):
+        super().__init__()
+        self._builddir = builddir
+        self.setWindowTitle(f'Meson Options — {builddir}')
+        self.resize(960, 700)
+        self._rebuild()
+
+    def _rebuild(self):
+        options, setups, source_dir = load_project_data(self._builddir)
+        self._options = options
+        self._setups = setups
+        defaults = parse_defaults(source_dir) if source_dir else {}
+
+        root_w = QWidget()
+        self.setCentralWidget(root_w)
+        layout = QVBoxLayout(root_w)
+        layout.setSpacing(6)
+
+        # Changed from defaults
+        cmd_line_opts = parse_cmd_line(self._builddir)
+        changed = []
+        seen = set()
+        for opt in options:
+            name = opt['name']
+            if name in defaults and str(opt['value']).lower() != str(defaults[name]).lower():
+                changed.append((opt, defaults[name]))
+                seen.add(name)
+        for opt in options:
+            name = opt['name']
+            if name in cmd_line_opts and name not in seen:
+                changed.append((opt, None))
+
+        if changed:
+            grp = QGroupBox('Changed from defaults')
+            gl = QVBoxLayout(grp)
+            gl.setContentsMargins(8, 8, 8, 8)
+            tbl = QTableWidget(len(changed), 3)
+            tbl.setHorizontalHeaderLabels(['Option', 'Current value', 'Default'])
+            tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            tbl.setEditTriggers(QTableWidget.NoEditTriggers)
+            tbl.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+            tbl.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            for r, (opt, dflt) in enumerate(changed):
+                tbl.setItem(r, 0, QTableWidgetItem(opt['name']))
+                cur = QTableWidgetItem(str(opt['value']))
+                cur.setForeground(QColor('#c03030'))
+                tbl.setItem(r, 1, cur)
+                tbl.setItem(r, 2, QTableWidgetItem('—' if dflt is None else str(dflt)))
+            gl.addWidget(tbl)
+            layout.addWidget(grp)
+
+        # Test setups
+        if setups:
+            grp = QGroupBox('Test Setups')
+            gl = QHBoxLayout(grp)
+            for name in setups:
+                btn = QPushButton(name)
+                btn.clicked.connect(lambda _, n=name: self._run_setup(n))
+                gl.addWidget(btn)
+            gl.addStretch()
+            layout.addWidget(grp)
+
+        # All options
+        grp = QGroupBox('Build Options')
+        gl = QVBoxLayout(grp)
+
+        frow = QHBoxLayout()
+        frow.addWidget(QLabel('Filter:'))
+        self._filter = QLineEdit()
+        self._filter.setPlaceholderText('name or description')
+        self._filter.textChanged.connect(self._do_filter)
+        frow.addWidget(self._filter)
+        gl.addLayout(frow)
+
+        self._tbl = QTableWidget(len(options), 4)
+        self._tbl.setHorizontalHeaderLabels(['Name', 'Type', 'Value', 'Description'])
+        hh = self._tbl.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive)
+        hh.setSectionResizeMode(3, QHeaderView.Stretch)
+        self._tbl.setColumnWidth(2, 200)
+        self._tbl.verticalHeader().setVisible(False)
+        self._tbl.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._tbl.setSelectionBehavior(QTableWidget.SelectRows)
+
+        for r, opt in enumerate(options):
+            self._tbl.setItem(r, 0, QTableWidgetItem(opt['name']))
+            self._tbl.setItem(r, 1, QTableWidgetItem(opt['type']))
+            self._tbl.setCellWidget(r, 2, ValueWidget(opt))
+            self._tbl.setItem(r, 3, QTableWidgetItem(opt.get('description', '')))
+
+        gl.addWidget(self._tbl)
+
+        apply_btn = QPushButton('Apply Changes')
+        apply_btn.clicked.connect(self._apply)
+        gl.addWidget(apply_btn, alignment=Qt.AlignRight)
+
+        layout.addWidget(grp)
+
+    def _do_filter(self, text: str):
+        text = text.lower()
+        for r in range(self._tbl.rowCount()):
+            name = self._tbl.item(r, 0).text().lower()
+            desc = self._tbl.item(r, 3).text().lower()
+            self._tbl.setRowHidden(r, bool(text) and text not in name and text not in desc)
+
+    def _run_setup(self, name: str):
+        TestOutputDialog(self, name, self._builddir).exec_()
+
+    def _apply(self):
+        defs = []
+        for r in range(self._tbl.rowCount()):
+            if self._tbl.isRowHidden(r):
+                continue
+            w = self._tbl.cellWidget(r, 2)
+            if w.current() != w.original():
+                defs.append(f"-D{self._options[r]['name']}={w.current()}")
+
+        if not defs:
+            QMessageBox.information(self, 'No changes', 'No options were modified.')
+            return
+
+        result = subprocess.run(
+            ['meson', 'configure', str(self._builddir)] + defs,
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            QMessageBox.information(self, 'Done', f'Applied {len(defs)} change(s).')
+            self._rebuild()
+        else:
+            QMessageBox.critical(self, 'Error', result.stderr or result.stdout or 'meson configure failed')
+
+
+def main():
+    app = QApplication(sys.argv)
+    builddir = find_builddir()
+    if not builddir.exists():
+        QMessageBox.critical(
+            None, 'Build directory not found',
+            f'{builddir} does not exist.\nRun "meson setup" first, or pass the build directory as an argument.',
+        )
+        sys.exit(1)
+    win = MainWindow(builddir)
+    win.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()
