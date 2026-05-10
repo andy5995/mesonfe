@@ -120,6 +120,85 @@ def parse_cmd_line(builddir: Path) -> set:
     return names
 
 
+def load_mesonferc_options(rc_path: Path) -> dict:
+    if not rc_path.exists():
+        return {}
+    opts = {}
+    in_options = False
+    for line in rc_path.read_text().splitlines():
+        line = line.strip()
+        if line == '[options]':
+            in_options = True
+        elif line.startswith('['):
+            in_options = False
+        elif in_options and '=' in line and not line.startswith('#'):
+            key, _, val = line.partition('=')
+            opts[key.strip()] = val.strip()
+    return opts
+
+
+def save_mesonferc_options(rc_path: Path, options: dict):
+    existing = rc_path.read_text().splitlines() if rc_path.exists() else []
+    top_lines = []
+    in_options = False
+    for line in existing:
+        stripped = line.strip()
+        if stripped == '[options]':
+            in_options = True
+        elif stripped.startswith('['):
+            in_options = False
+            top_lines.append(line)
+        elif not in_options:
+            top_lines.append(line)
+    while top_lines and not top_lines[-1].strip():
+        top_lines.pop()
+    lines = top_lines
+    if options:
+        if lines:
+            lines.append('')
+        lines.append('[options]')
+        for key, val in options.items():
+            lines.append(f'{key} = {val}')
+    rc_path.write_text('\n'.join(lines) + '\n')
+
+
+class MesonSetupDialog(QDialog):
+    def __init__(self, parent: QWidget, args: list):
+        super().__init__(parent)
+        self.setWindowTitle('meson setup')
+        self.resize(720, 480)
+        layout = QVBoxLayout(self)
+        self._out = QTextEdit()
+        self._out.setReadOnly(True)
+        self._out.setFont(QFont('monospace', 10))
+        layout.addWidget(self._out)
+        self._btn = QPushButton('Close')
+        self._btn.setEnabled(False)
+        self._btn.clicked.connect(self.accept)
+        layout.addWidget(self._btn)
+        self._proc = QProcess(self)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyRead.connect(
+            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
+        )
+        self._proc.finished.connect(self._on_finished)
+        self._proc.start('meson', args)
+
+    def _append(self, text: str):
+        self._out.moveCursor(QTextCursor.End)
+        self._out.insertPlainText(text)
+
+    def _on_finished(self, code: int, _status):
+        self._append(f'\n[exited {code}]')
+        self._btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        if self._proc.state() != QProcess.NotRunning:
+            self._proc.kill()
+            self._proc.waitForFinished(2000)
+        super().closeEvent(event)
+
+
 class TestOutputDialog(QDialog):
     def __init__(self, parent: QWidget, name: str, builddir: Path):
         super().__init__(parent)
@@ -296,8 +375,18 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._builddir = builddir
         self._test_items = []
+        self._source_dir = None
+        self._changed = []
         self.setWindowTitle(f'Meson Options — {builddir}')
         self.resize(960, 700)
+
+        build_menu = self.menuBar().addMenu('Build')
+        self._save_rc_action = build_menu.addAction('Save options to .mesonferc')
+        self._save_rc_action.triggered.connect(self._save_to_mesonferc)
+        self._save_rc_action.setEnabled(False)
+        self._setup_rc_action = build_menu.addAction('Setup from .mesonferc')
+        self._setup_rc_action.triggered.connect(self._setup_from_mesonferc)
+        self._setup_rc_action.setEnabled(False)
 
         self._run_tests_action = self.menuBar().addMenu('Tests').addAction('Display Tests…')
         self._run_tests_action.triggered.connect(self._select_and_run_tests)
@@ -309,6 +398,7 @@ class MainWindow(QMainWindow):
         options, setups, source_dir = load_project_data(self._builddir)
         self._options = options
         self._setups = setups
+        self._source_dir = source_dir
         defaults = parse_defaults(source_dir) if source_dir else {}
 
         root_w = QWidget()
@@ -329,6 +419,12 @@ class MainWindow(QMainWindow):
             name = opt['name']
             if name in cmd_line_opts and name not in seen:
                 changed.append((opt, None))
+
+        self._changed = changed
+        self._save_rc_action.setEnabled(bool(source_dir))
+        self._setup_rc_action.setEnabled(
+            bool(source_dir and (source_dir / '.mesonferc').exists())
+        )
 
         if changed:
             grp = QGroupBox('Changed from defaults')
@@ -414,6 +510,60 @@ class MainWindow(QMainWindow):
                 if verbose:
                     runs = [(label, args + ['--verbose']) for label, args in runs]
                 MultiTestOutputDialog(self, runs, self._builddir).exec_()
+
+    def _collect_options_to_save(self) -> dict:
+        to_save = {}
+        for opt, _ in self._changed:
+            v = opt['value']
+            to_save[opt['name']] = ','.join(str(x) for x in v) if isinstance(v, list) else str(v)
+        for r in range(self._tbl.rowCount()):
+            if self._tbl.isRowHidden(r):
+                continue
+            w = self._tbl.cellWidget(r, 2)
+            if w.current() != w.original():
+                to_save[self._options[r]['name']] = w.current()
+        return to_save
+
+    def _save_to_mesonferc(self):
+        options = self._collect_options_to_save()
+        if not options:
+            QMessageBox.information(self, 'Nothing to save', 'No options differ from defaults.')
+            return
+        rc_path = self._source_dir / '.mesonferc'
+        save_mesonferc_options(rc_path, options)
+        self._setup_rc_action.setEnabled(True)
+        QMessageBox.information(self, 'Saved', f'Saved {len(options)} option(s) to {rc_path.name}.')
+
+    def _setup_from_mesonferc(self):
+        rc_path = self._source_dir / '.mesonferc'
+        rc_options = load_mesonferc_options(rc_path)
+        if not rc_options:
+            QMessageBox.information(self, 'No saved options', f'No [options] section found in {rc_path.name}.')
+            return
+
+        current_opts = self._collect_options_to_save()
+        will_apply = [f'  -D{k}={v}' for k, v in rc_options.items()]
+        will_reset = [
+            f'  {k}={current_opts[k]}'
+            for k in current_opts
+            if k not in rc_options
+        ]
+
+        msg = 'Will apply:\n' + '\n'.join(will_apply)
+        if will_reset:
+            msg += '\n\nCurrently set but not in .mesonferc (will reset to default):\n' + '\n'.join(will_reset)
+        msg += '\n\nContinue?'
+
+        if QMessageBox.question(self, 'Setup from .mesonferc', msg) != QMessageBox.Yes:
+            return
+
+        d_args = [f'-D{k}={v}' for k, v in rc_options.items()]
+        builddir = str(self._builddir.resolve())
+        has_build = (self._builddir / 'meson-info').exists()
+        args = ['setup', str(self._source_dir), builddir] + (['--reconfigure'] + d_args if has_build else d_args)
+        dlg = MesonSetupDialog(self, args)
+        dlg.exec_()
+        self._rebuild()
 
     def _apply(self):
         defs = []

@@ -5,10 +5,17 @@ A PyQt5 GUI frontend for browsing and editing [Meson](https://mesonbuild.com/) b
 ## Features
 
 - Displays all build options with their current values and descriptions
-- Highlights options changed from their defaults
+- Highlights options that differ from their defaults (from `meson_options.txt` and `meson-private/cmd_line.txt`)
 - Filter options by name or description
-- Applies changes via `meson configure`
-- Runs named test setups with live output streaming
+- Apply changes via `meson configure`
+- **Build menu**
+  - Save current non-default options to `.mesonferc`
+  - Run `meson setup` using saved options from `.mesonferc`, with a preview of what will be applied and what will be reset
+- **Tests menu** — select and run tests with optional verbose output:
+  - Default (all tests)
+  - Individual suites
+  - Named test setups (`add_test_setup`)
+  - Sequential output streamed in a single window
 
 ## Dependencies
 
@@ -27,13 +34,23 @@ The build directory must already exist (run `meson setup` first).
 
 ## Configuration
 
-Place `.mesonferc` in your project root or its parent. Supported keys:
+Place `.mesonferc` in your project root or its parent. `mesonfe` walks up one directory level when searching for it.
 
 ```ini
 default_builddir = _build
 ```
 
-If not set, `_build` is used. `mesonfe` walks up one directory level when searching for `.mesonferc`.
+The **Build → Save options to .mesonferc** action adds an `[options]` section to this file:
+
+```ini
+default_builddir = _build
+
+[options]
+b_sanitize = address,undefined
+gen_protobuf = true
+```
+
+**Build → Setup from .mesonferc** runs `meson setup` with these options as `-D` flags, showing a confirmation first so you can see what will be applied and what currently-set options are not in the file (and will reset to default).
 
 ## Build & install
 
@@ -42,4 +59,4 @@ meson setup _build
 meson install -C _build
 ```
 
-Installs `mesonfe` to `bindir` (default `/usr/local/bin`).
+Installs `mesonfe` to `bindir` (default `/usr/local/bin`). Requires `pytest` for `ninja test`.
