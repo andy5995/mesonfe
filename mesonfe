@@ -488,6 +488,7 @@ class MainWindow(QMainWindow):
             header_h = tbl.horizontalHeader().sizeHint().height()
             self._changed_max_h = 4 * row_h + header_h
             tbl.setMaximumHeight(self._changed_max_h)
+            tbl.cellClicked.connect(self._jump_to_option)
             self._changed_dock.setWidget(tbl)
             self._changed_dock.show()
         else:
@@ -612,6 +613,15 @@ class MainWindow(QMainWindow):
         dlg = MesonSetupDialog(self, args)
         dlg.exec_()
         self._rebuild()
+
+    def _jump_to_option(self, row, _col):
+        name = self._changed_dock.widget().item(row, 0).text()
+        for r in range(self._tbl.rowCount()):
+            item = self._tbl.item(r, 0)
+            if item and item.text() == name:
+                self._tbl.scrollToItem(item)
+                self._tbl.selectRow(r)
+                break
 
     def _on_changed_dock_float(self, floating):
         tbl = self._changed_dock.widget()
