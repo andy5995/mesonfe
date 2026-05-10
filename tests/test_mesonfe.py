@@ -59,6 +59,13 @@ def test_find_builddir_from_argv(tmp_path):
         assert find_builddir() == tmp_path
 
 
+def test_find_builddir_detects_cwd_as_build_dir(tmp_path, monkeypatch):
+    (tmp_path / 'meson-info').mkdir()
+    monkeypatch.chdir(tmp_path)
+    with patch.object(sys, 'argv', ['mesonfe']):
+        assert find_builddir() == Path('.')
+
+
 def test_find_builddir_from_rc_in_cwd(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     rc = tmp_path / '.mesonferc'

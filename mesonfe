@@ -16,9 +16,15 @@ from PyQt5.QtCore import Qt, QProcess
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette
 
 
+def _is_build_dir(path: Path) -> bool:
+    return (path / 'meson-info').is_dir() or (path / 'meson-private').is_dir()
+
+
 def find_builddir() -> Path:
     if len(sys.argv) > 1:
         return Path(sys.argv[1])
+    if _is_build_dir(Path('.')):
+        return Path('.')
     for base in (Path('.'), Path('..')):
         rc = base / '.mesonferc'
         if rc.exists():
