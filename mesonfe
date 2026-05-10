@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
-    QAbstractScrollArea, QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
     QListWidget, QListWidgetItem, QCheckBox,
@@ -411,7 +411,8 @@ class MainWindow(QMainWindow):
         self._source_dir = None
         self._changed = []
         self.setWindowTitle(f'Meson Options — {builddir}')
-        self.resize(960, 700)
+        screen = QApplication.primaryScreen().availableGeometry()
+        self.resize(int(screen.width() * 0.8), int(screen.height() * 0.8))
 
         build_menu = self.menuBar().addMenu('Build')
         self._save_rc_action = build_menu.addAction('Save options to .mesonferc')
@@ -472,8 +473,10 @@ class MainWindow(QMainWindow):
             tbl.setHorizontalHeaderLabels(['Option', 'Current value', 'Default'])
             tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
             tbl.setEditTriggers(QTableWidget.NoEditTriggers)
-            tbl.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
-            tbl.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            tbl.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            row_h = tbl.verticalHeader().defaultSectionSize()
+            header_h = tbl.horizontalHeader().sizeHint().height()
+            grp.setMaximumHeight(4 * row_h + header_h + 48)  # 48 for groupbox title + margins
             for r, (opt, dflt) in enumerate(changed):
                 tbl.setItem(r, 0, QTableWidgetItem(opt['name']))
                 cur = QTableWidgetItem(str(opt['value']))
@@ -531,7 +534,7 @@ class MainWindow(QMainWindow):
         apply_btn.clicked.connect(self._apply)
         gl.addWidget(apply_btn, alignment=Qt.AlignRight)
 
-        layout.addWidget(grp)
+        layout.addWidget(grp, 1)
 
     def _do_filter(self, text: str):
         text = text.lower()
