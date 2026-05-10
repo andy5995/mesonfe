@@ -259,6 +259,7 @@ class TestRunSelectDialog(QDialog):
 
         self._changing = False
         self._list = QListWidget()
+        self._list.setSelectionMode(QListWidget.NoSelection)
         for i, (label, args) in enumerate(items):
             item = QListWidgetItem(label)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
