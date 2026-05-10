@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
-    QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog,
+    QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog, QSpinBox,
 )
 from PyQt5.QtCore import Qt, QProcess
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette
@@ -241,6 +241,85 @@ class MesonSetupDialog(QDialog):
         super().closeEvent(event)
 
 
+class MesonCompileDialog(QDialog):
+    def __init__(self, parent: QWidget, builddir: Path):
+        super().__init__(parent)
+        self.setWindowTitle('meson compile')
+        self.resize(720, 520)
+        layout = QVBoxLayout(self)
+
+        form = QHBoxLayout()
+        form.addWidget(QLabel('Jobs:'))
+        self._jobs = QSpinBox()
+        self._jobs.setRange(0, 256)
+        self._jobs.setValue(0)
+        self._jobs.setSpecialValueText('default')
+        self._jobs.setToolTip('0 = use meson default')
+        form.addWidget(self._jobs)
+        form.addSpacing(12)
+        self._verbose = QCheckBox('Verbose')
+        form.addWidget(self._verbose)
+        self._clean = QCheckBox('Clean')
+        form.addWidget(self._clean)
+        form.addSpacing(12)
+        form.addWidget(QLabel('Target:'))
+        self._target = QLineEdit()
+        self._target.setPlaceholderText('(all)')
+        form.addWidget(self._target)
+        layout.addLayout(form)
+
+        self._out = QTextEdit()
+        self._out.setReadOnly(True)
+        self._out.setFont(QFont('monospace', 10))
+        layout.addWidget(self._out)
+
+        btns = QHBoxLayout()
+        self._run_btn = QPushButton('Run')
+        self._run_btn.clicked.connect(self._run)
+        self._close_btn = QPushButton('Close')
+        self._close_btn.clicked.connect(self.accept)
+        btns.addStretch()
+        btns.addWidget(self._run_btn)
+        btns.addWidget(self._close_btn)
+        layout.addLayout(btns)
+
+        self._builddir = builddir
+        self._proc = QProcess(self)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyRead.connect(
+            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
+        )
+        self._proc.finished.connect(self._on_finished)
+
+    def _run(self):
+        self._out.clear()
+        self._run_btn.setEnabled(False)
+        args = ['compile', '-C', str(self._builddir)]
+        if self._jobs.value() > 0:
+            args += ['-j', str(self._jobs.value())]
+        if self._verbose.isChecked():
+            args.append('--verbose')
+        if self._clean.isChecked():
+            args.append('--clean')
+        if self._target.text().strip():
+            args.append(self._target.text().strip())
+        self._proc.start('meson', args)
+
+    def _append(self, text: str):
+        self._out.moveCursor(QTextCursor.End)
+        self._out.insertPlainText(text)
+
+    def _on_finished(self, code: int, _status):
+        self._append(f'\n[exited {code}]')
+        self._run_btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        if self._proc.state() != QProcess.NotRunning:
+            self._proc.kill()
+            self._proc.waitForFinished(2000)
+        super().closeEvent(event)
+
+
 class TestOutputDialog(QDialog):
     def __init__(self, parent: QWidget, name: str, builddir: Path):
         super().__init__(parent)
@@ -455,6 +534,10 @@ class MainWindow(QMainWindow):
         self._setup_rc_action = build_menu.addAction('Setup from .mesonferc')
         self._setup_rc_action.triggered.connect(self._setup_from_mesonferc)
         self._setup_rc_action.setEnabled(False)
+        build_menu.addSeparator()
+        self._compile_action = build_menu.addAction('Compile…')
+        self._compile_action.triggered.connect(self._run_compile)
+        self._compile_action.setEnabled(False)
 
         self._run_tests_action = self.menuBar().addMenu('Tests').addAction('Display Tests…')
         self._run_tests_action.triggered.connect(self._select_and_run_tests)
@@ -550,6 +633,7 @@ class MainWindow(QMainWindow):
         else:
             self._test_items = []
         self._run_tests_action.setEnabled(bool(self._test_items))
+        self._compile_action.setEnabled(True)
 
         # All options
         grp = QGroupBox('Build Options')
@@ -595,6 +679,9 @@ class MainWindow(QMainWindow):
             name = self._tbl.item(r, 0).text().lower()
             desc = self._tbl.item(r, 3).text().lower()
             self._tbl.setRowHidden(r, bool(text) and text not in name and text not in desc)
+
+    def _run_compile(self):
+        MesonCompileDialog(self, self._builddir).exec_()
 
     def _select_and_run_tests(self):
         dlg = TestRunSelectDialog(self, self._test_items)
