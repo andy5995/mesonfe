@@ -538,6 +538,9 @@ class MainWindow(QMainWindow):
         self._compile_action = build_menu.addAction('Compile…')
         self._compile_action.triggered.connect(self._run_compile)
         self._compile_action.setEnabled(False)
+        self._install_action = build_menu.addAction('Install…')
+        self._install_action.triggered.connect(self._run_install)
+        self._install_action.setEnabled(False)
 
         self._run_tests_action = self.menuBar().addMenu('Tests').addAction('Display Tests…')
         self._run_tests_action.triggered.connect(self._select_and_run_tests)
@@ -637,6 +640,7 @@ class MainWindow(QMainWindow):
             self._test_items = []
         self._run_tests_action.setEnabled(bool(self._test_items))
         self._compile_action.setEnabled(True)
+        self._install_action.setEnabled(True)
 
         # All options
         grp = QGroupBox('Build Options')
@@ -685,6 +689,11 @@ class MainWindow(QMainWindow):
 
     def _run_compile(self):
         MesonCompileDialog(self, self._builddir).exec_()
+
+    def _run_install(self):
+        dlg = MesonSetupDialog(self, ['install', '-C', str(self._builddir)])
+        dlg.setWindowTitle('meson install')
+        dlg.exec_()
 
     def _select_and_run_tests(self):
         dlg = TestRunSelectDialog(self, self._test_items)
