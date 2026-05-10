@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=@NAME@
+Comment=GUI frontend for Meson build options
+Exec=@NAME@
+Icon=applications-development
+Categories=Development;
+Terminal=false
+Keywords=meson;build;configure;

@@ -31,6 +31,14 @@ py.install_sources(
     subdir: 'mesonfe',
 )
 
+configure_file(
+    input: 'data/mesonfe.desktop.in',
+    output: '@0@.desktop'.format(meson.project_name()),
+    configuration: {'NAME': meson.project_name()},
+    install: true,
+    install_dir: get_option('datadir') / 'applications',
+)
+
 pytest = find_program('pytest', required: false)
 if pytest.found()
     test(

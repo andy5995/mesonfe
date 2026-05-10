@@ -68,6 +68,7 @@ meson setup builddir
 meson install -C builddir
 ```
 
-Installs `mesonfe` to `bindir` (default `/usr/local/bin`) and a `mesonfe` Python
-package (containing the version module) to the Python site-packages directory.
+Installs `mesonfe` to `bindir` (default `/usr/local/bin`), a `mesonfe` Python
+package (containing the version module) to the Python site-packages directory,
+and a `.desktop` file to `datadir/applications` for desktop launcher integration.
 Requires `pytest` for `ninja test`.
