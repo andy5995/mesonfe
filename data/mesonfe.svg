@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Window frame -->
+  <rect x="2" y="2" width="44" height="44" rx="5" fill="#2b2d30" stroke="#5a9fd4" stroke-width="1.5"/>
+
+  <!-- Title bar -->
+  <rect x="2" y="2" width="44" height="13" rx="5" fill="#3c3f41"/>
+  <rect x="2" y="9"  width="44" height="6"  fill="#3c3f41"/>
+
+  <!-- Title bar: traffic-light dots -->
+  <circle cx="9"  cy="8" r="2.2" fill="#ff6b6b"/>
+  <circle cx="16" cy="8" r="2.2" fill="#ffd166"/>
+  <circle cx="23" cy="8" r="2.2" fill="#06d6a0"/>
+
+  <!-- Title bar: gear icon (right side) -->
+  <circle cx="39" cy="8" r="3.5" fill="none" stroke="#8ec6f0" stroke-width="1.4"/>
+  <circle cx="39" cy="8" r="1.4" fill="#8ec6f0"/>
+  <line x1="39" y1="3.8" x2="39" y2="5.2" stroke="#8ec6f0" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="39" y1="10.8" x2="39" y2="12.2" stroke="#8ec6f0" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="34.8" y1="8" x2="36.2" y2="8" stroke="#8ec6f0" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="41.8" y1="8" x2="43.2" y2="8" stroke="#8ec6f0" stroke-width="1.3" stroke-linecap="round"/>
+
+  <!-- Option row 1 — checked -->
+  <rect x="7" y="18" width="7" height="7" rx="1.5" fill="#5a9fd4" stroke="#8ec6f0" stroke-width="0.8"/>
+  <polyline points="8.5,21.5 10,23.5 13,19.5" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="18" y="20.5" width="22" height="2" rx="1" fill="#8ec6f0" opacity="0.75"/>
+
+  <!-- Option row 2 — unchecked -->
+  <rect x="7" y="28" width="7" height="7" rx="1.5" fill="none" stroke="#5a9fd4" stroke-width="1"/>
+  <rect x="18" y="30.5" width="15" height="2" rx="1" fill="#5a9fd4" opacity="0.5"/>
+
+  <!-- Option row 3 — checked -->
+  <rect x="7" y="38" width="7" height="7" rx="1.5" fill="#5a9fd4" stroke="#8ec6f0" stroke-width="0.8"/>
+  <polyline points="8.5,41.5 10,43.5 13,39.5" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="18" y="40.5" width="19" height="2" rx="1" fill="#8ec6f0" opacity="0.75"/>
+</svg>

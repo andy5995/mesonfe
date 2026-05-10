@@ -31,6 +31,11 @@ py.install_sources(
     subdir: 'mesonfe',
 )
 
+install_data(
+    'data/@0@.svg'.format(meson.project_name()),
+    install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'scalable' / 'apps',
+)
+
 configure_file(
     input: 'data/mesonfe.desktop.in',
     output: '@0@.desktop'.format(meson.project_name()),
