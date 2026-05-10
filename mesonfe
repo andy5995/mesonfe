@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
     QAbstractScrollArea, QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
+    QListWidget, QListWidgetItem, QCheckBox,
 )
 from PyQt5.QtCore import Qt, QProcess
 from PyQt5.QtGui import QFont, QColor, QTextCursor
@@ -39,16 +40,40 @@ def read_json(path: Path):
         return None
 
 
+def find_test_suites(builddir: Path) -> list:
+    tests = read_json(builddir / 'meson-info' / 'intro-tests.json') or []
+    seen = set()
+    suites = []
+    for t in tests:
+        for s in t.get('suite', []):
+            if s not in seen:
+                seen.add(s)
+                suites.append(s)
+    return suites
+
+
+def find_test_setups(builddir: Path) -> list:
+    build_files = read_json(builddir / 'meson-info' / 'intro-buildsystem_files.json') or []
+    setups = []
+    for f in build_files:
+        try:
+            text = Path(f).read_text()
+            setups.extend(re.findall(r"add_test_setup\s*\(\s*['\"]([^'\"]+)['\"]", text))
+        except (OSError, UnicodeDecodeError):
+            pass
+    return setups
+
+
 def load_project_data(builddir: Path):
     info_dir = builddir / 'meson-info'
     options = read_json(info_dir / 'intro-buildoptions.json') or []
-    test_setups = read_json(info_dir / 'intro-test-setups.json') or {}
     source_dir = None
     info = read_json(info_dir / 'meson-info.json')
     if info:
         src = info.get('directories', {}).get('source')
         if src:
             source_dir = Path(src)
+    test_setups = find_test_setups(builddir)
     return options, test_setups, source_dir
 
 
@@ -114,7 +139,7 @@ class TestOutputDialog(QDialog):
         layout.addWidget(self._btn)
 
         self._proc = QProcess(self)
-        self._proc.setMergedChannels(True)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
         self._proc.readyRead.connect(
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
@@ -128,6 +153,98 @@ class TestOutputDialog(QDialog):
     def _on_finished(self, code: int, _status):
         self._append(f'\n[exited {code}]')
         self._btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        if self._proc.state() != QProcess.NotRunning:
+            self._proc.kill()
+            self._proc.waitForFinished(2000)
+        super().closeEvent(event)
+
+
+class TestRunSelectDialog(QDialog):
+    def __init__(self, parent: QWidget, items: list):
+        super().__init__(parent)
+        self.setWindowTitle('Tests')
+        self.resize(360, 320)
+        layout = QVBoxLayout(self)
+
+        self._list = QListWidget()
+        for i, (label, args) in enumerate(items):
+            item = QListWidgetItem(label)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if i == 0 else Qt.Unchecked)
+            item.setData(Qt.UserRole, args)
+            self._list.addItem(item)
+        layout.addWidget(self._list)
+
+        self._verbose = QCheckBox('Verbose')
+        layout.addWidget(self._verbose)
+
+        btns = QHBoxLayout()
+        run_btn = QPushButton('Run Selected')
+        run_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton('Cancel')
+        cancel_btn.clicked.connect(self.reject)
+        btns.addStretch()
+        btns.addWidget(run_btn)
+        btns.addWidget(cancel_btn)
+        layout.addLayout(btns)
+
+    def selected(self):
+        runs = [
+            (self._list.item(i).text(), self._list.item(i).data(Qt.UserRole))
+            for i in range(self._list.count())
+            if self._list.item(i).checkState() == Qt.Checked
+        ]
+        return runs, self._verbose.isChecked()
+
+
+class MultiTestOutputDialog(QDialog):
+    def __init__(self, parent: QWidget, runs: list, builddir: Path):
+        super().__init__(parent)
+        self.setWindowTitle('Test Results')
+        self.resize(720, 520)
+        self._runs = list(runs)
+        self._builddir = builddir
+        self._idx = 0
+
+        layout = QVBoxLayout(self)
+
+        self._out = QTextEdit()
+        self._out.setReadOnly(True)
+        self._out.setFont(QFont('monospace', 10))
+        layout.addWidget(self._out)
+
+        self._btn = QPushButton('Close')
+        self._btn.setEnabled(False)
+        self._btn.clicked.connect(self.accept)
+        layout.addWidget(self._btn)
+
+        self._proc = QProcess(self)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyRead.connect(
+            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
+        )
+        self._proc.finished.connect(self._on_finished)
+        self._run_next()
+
+    def _run_next(self):
+        label, args = self._runs[self._idx]
+        self._append(f'=== {label} ===\n')
+        self._proc.start('meson', ['test', '-C', str(self._builddir)] + args)
+
+    def _append(self, text: str):
+        self._out.moveCursor(QTextCursor.End)
+        self._out.insertPlainText(text)
+
+    def _on_finished(self, code: int, _status):
+        self._append(f'[exited {code}]\n')
+        self._idx += 1
+        if self._idx < len(self._runs):
+            self._append('\n')
+            self._run_next()
+        else:
+            self._btn.setEnabled(True)
 
     def closeEvent(self, event):
         if self._proc.state() != QProcess.NotRunning:
@@ -178,8 +295,14 @@ class MainWindow(QMainWindow):
     def __init__(self, builddir: Path):
         super().__init__()
         self._builddir = builddir
+        self._test_items = []
         self.setWindowTitle(f'Meson Options — {builddir}')
         self.resize(960, 700)
+
+        self._run_tests_action = self.menuBar().addMenu('Tests').addAction('Display Tests…')
+        self._run_tests_action.triggered.connect(self._select_and_run_tests)
+        self._run_tests_action.setEnabled(False)
+
         self._rebuild()
 
     def _rebuild(self):
@@ -226,16 +349,17 @@ class MainWindow(QMainWindow):
             gl.addWidget(tbl)
             layout.addWidget(grp)
 
-        # Test setups
-        if setups:
-            grp = QGroupBox('Test Setups')
-            gl = QHBoxLayout(grp)
+        # Build test items for the menu action
+        suites = find_test_suites(self._builddir)
+        if suites or setups:
+            self._test_items = [('Default', [])]
+            for s in suites:
+                self._test_items.append((f'Suite: {s}', ['--suite', s]))
             for name in setups:
-                btn = QPushButton(name)
-                btn.clicked.connect(lambda _, n=name: self._run_setup(n))
-                gl.addWidget(btn)
-            gl.addStretch()
-            layout.addWidget(grp)
+                self._test_items.append((f'Setup: {name}', ['--setup', name]))
+        else:
+            self._test_items = []
+        self._run_tests_action.setEnabled(bool(self._test_items))
 
         # All options
         grp = QGroupBox('Build Options')
@@ -282,8 +406,14 @@ class MainWindow(QMainWindow):
             desc = self._tbl.item(r, 3).text().lower()
             self._tbl.setRowHidden(r, bool(text) and text not in name and text not in desc)
 
-    def _run_setup(self, name: str):
-        TestOutputDialog(self, name, self._builddir).exec_()
+    def _select_and_run_tests(self):
+        dlg = TestRunSelectDialog(self, self._test_items)
+        if dlg.exec_() == QDialog.Accepted:
+            runs, verbose = dlg.selected()
+            if runs:
+                if verbose:
+                    runs = [(label, args + ['--verbose']) for label, args in runs]
+                MultiTestOutputDialog(self, runs, self._builddir).exec_()
 
     def _apply(self):
         defs = []

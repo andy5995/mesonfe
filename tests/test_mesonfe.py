@@ -23,6 +23,8 @@ read_json = _mod.read_json
 find_builddir = _mod.find_builddir
 parse_defaults = _mod.parse_defaults
 parse_cmd_line = _mod.parse_cmd_line
+find_test_suites = _mod.find_test_suites
+find_test_setups = _mod.find_test_setups
 load_project_data = _mod.load_project_data
 
 
@@ -180,24 +182,99 @@ def test_parse_cmd_line_no_options_section(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# find_test_suites
+# ---------------------------------------------------------------------------
+
+def test_find_test_suites_basic(tmp_path):
+    info = tmp_path / 'meson-info'
+    info.mkdir()
+    tests = [
+        {'name': 't1', 'suite': ['myproject:core']},
+        {'name': 't2', 'suite': ['myproject:core']},
+        {'name': 't3', 'suite': ['myproject:utils']},
+    ]
+    (info / 'intro-tests.json').write_text(json.dumps(tests))
+    assert find_test_suites(tmp_path) == ['myproject:core', 'myproject:utils']
+
+
+def test_find_test_suites_preserves_order(tmp_path):
+    info = tmp_path / 'meson-info'
+    info.mkdir()
+    tests = [
+        {'name': 't1', 'suite': ['proj:b']},
+        {'name': 't2', 'suite': ['proj:a']},
+    ]
+    (info / 'intro-tests.json').write_text(json.dumps(tests))
+    assert find_test_suites(tmp_path) == ['proj:b', 'proj:a']
+
+
+def test_find_test_suites_missing_file(tmp_path):
+    (tmp_path / 'meson-info').mkdir()
+    assert find_test_suites(tmp_path) == []
+
+
+# ---------------------------------------------------------------------------
+# find_test_setups
+# ---------------------------------------------------------------------------
+
+def test_find_test_setups_basic(tmp_path):
+    info = tmp_path / 'meson-info'
+    info.mkdir()
+    mb = tmp_path / 'meson.build'
+    mb.write_text("add_test_setup('valgrind', timeout_multiplier: 2)\n")
+    (info / 'intro-buildsystem_files.json').write_text(json.dumps([str(mb)]))
+    assert find_test_setups(tmp_path) == ['valgrind']
+
+
+def test_find_test_setups_multiple(tmp_path):
+    info = tmp_path / 'meson-info'
+    info.mkdir()
+    mb = tmp_path / 'meson.build'
+    mb.write_text(
+        "add_test_setup('valgrind')\n"
+        "add_test_setup(\"asan\", env: e)\n"
+    )
+    (info / 'intro-buildsystem_files.json').write_text(json.dumps([str(mb)]))
+    assert find_test_setups(tmp_path) == ['valgrind', 'asan']
+
+
+def test_find_test_setups_no_buildsystem_files(tmp_path):
+    (tmp_path / 'meson-info').mkdir()
+    assert find_test_setups(tmp_path) == []
+
+
+def test_find_test_setups_missing_source_file(tmp_path):
+    info = tmp_path / 'meson-info'
+    info.mkdir()
+    (info / 'intro-buildsystem_files.json').write_text(
+        json.dumps([str(tmp_path / 'nonexistent.build')])
+    )
+    assert find_test_setups(tmp_path) == []
+
+
+# ---------------------------------------------------------------------------
 # load_project_data
 # ---------------------------------------------------------------------------
 
-def test_load_project_data_full(tmp_path):
+def _make_info_dir(tmp_path, options=None, meson_info=None, build_files=None):
     info = tmp_path / 'meson-info'
-    info.mkdir()
+    info.mkdir(exist_ok=True)
+    (info / 'intro-buildoptions.json').write_text(json.dumps(options or []))
+    (info / 'meson-info.json').write_text(json.dumps(meson_info or {}))
+    (info / 'intro-buildsystem_files.json').write_text(json.dumps(build_files or []))
+    return info
 
+
+def test_load_project_data_full(tmp_path):
+    mb = tmp_path / 'meson.build'
+    mb.write_text("add_test_setup('One_pass')\n")
     options = [{'name': 'opt1', 'type': 'boolean', 'value': True}]
-    setups = {'valgrind': {'exe_wrapper': []}}
     meson_info = {'directories': {'source': str(tmp_path / 'src')}}
-
-    (info / 'intro-buildoptions.json').write_text(json.dumps(options))
-    (info / 'intro-test-setups.json').write_text(json.dumps(setups))
-    (info / 'meson-info.json').write_text(json.dumps(meson_info))
+    _make_info_dir(tmp_path, options=options, meson_info=meson_info, build_files=[str(mb)])
 
     opts, ts, src = load_project_data(tmp_path)
     assert opts == options
-    assert ts == setups
+    assert ts == ['One_pass']
     assert src == tmp_path / 'src'
 
 
@@ -205,15 +282,11 @@ def test_load_project_data_missing_files(tmp_path):
     (tmp_path / 'meson-info').mkdir()
     opts, ts, src = load_project_data(tmp_path)
     assert opts == []
-    assert ts == {}
+    assert ts == []
     assert src is None
 
 
 def test_load_project_data_no_source_dir_key(tmp_path):
-    info = tmp_path / 'meson-info'
-    info.mkdir()
-    (info / 'intro-buildoptions.json').write_text('[]')
-    (info / 'intro-test-setups.json').write_text('{}')
-    (info / 'meson-info.json').write_text('{"directories": {}}')
+    _make_info_dir(tmp_path, meson_info={'directories': {}})
     _, _, src = load_project_data(tmp_path)
     assert src is None

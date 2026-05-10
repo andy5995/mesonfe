@@ -13,14 +13,12 @@ install_data(
 )
 
 py = import('python').find_installation('python3')
-pyqt5 = py.find_python_module('PyQt5', required: false)
+pyqt5_check = run_command(py, '-c', 'import PyQt5', check: false)
+if pyqt5_check.returncode() != 0
+  warning('PyQt5 not found; mesonfe requires PyQt5 to run')
+endif
 
-if pyqt5.found()
-  install_data(
-    'mesonfe-qt',
-    install_dir: get_option('bindir'),
-    install_mode: 'rwxr-xr-x',
-  )
-else
-  warning('PyQt5 not found; mesonfe-qt will not be installed')
+pytest = find_program('pytest', required: false)
+if pytest.found()
+  test('pytest', pytest, args: ['tests/'], workdir: meson.project_source_root())
 endif
