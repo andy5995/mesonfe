@@ -1,4 +1,4 @@
-project('mesonfe', version: '0.1.0', license: 'MIT')
+project('mesonfe', version: '0.1.0', license: 'MIT', meson_version: '>= 0.56.0')
 
 install_data(
   'mesonfe',
