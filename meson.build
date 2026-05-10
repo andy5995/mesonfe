@@ -16,13 +16,10 @@ install_data(
     install_dir: _docdir,
 )
 
-py = import('python').find_installation('python3')
-pyqt5_check = run_command(py, '-c', 'import PyQt5', check: false)
-if pyqt5_check.returncode() != 0
-    warning(
-        'PyQt5 not found; ' + meson.project_name() + ' requires PyQt5 to run',
-    )
-endif
+py = import('python').find_installation(
+    'python3',
+    modules: ['PyQt5', 'platformdirs'],
+)
 
 _version_py = configure_file(
     input: 'src/mesonfe/_version.py.in',

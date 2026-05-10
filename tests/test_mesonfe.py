@@ -101,7 +101,7 @@ def test_find_builddir_rc_default_fallback(tmp_path, monkeypatch):
 def test_find_builddir_no_rc(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     with patch.object(sys, 'argv', ['mesonfe']):
-        assert find_builddir() == Path('builddir')
+        assert find_builddir() is None
 
 
 # ---------------------------------------------------------------------------

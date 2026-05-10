@@ -10,10 +10,11 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
-    QListWidget, QListWidgetItem, QCheckBox, QDockWidget,
+    QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog,
 )
 from PyQt5.QtCore import Qt, QProcess
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette
+from platformdirs import user_config_dir
 
 try:
     from mesonfe._version import VERSION
@@ -25,7 +26,7 @@ def _is_build_dir(path: Path) -> bool:
     return (path / 'meson-info').is_dir() or (path / 'meson-private').is_dir()
 
 
-def find_builddir() -> Path:
+def find_builddir():
     if len(sys.argv) > 1:
         return Path(sys.argv[1])
     if _is_build_dir(Path('.')):
@@ -41,7 +42,7 @@ def find_builddir() -> Path:
                 if key.strip() == 'default_builddir':
                     return base / val.strip().strip('"')
             return base / 'builddir'
-    return Path('builddir')
+    return None
 
 
 def read_json(path: Path):
@@ -175,6 +176,31 @@ def save_mesonferc_options(rc_path: Path, options: dict):
         for key, val in options.items():
             lines.append(f'{key} = {val}')
     rc_path.write_text('\n'.join(lines) + '\n')
+
+
+_RECENT_PATH = Path(user_config_dir('mesonfe')) / 'recent.json'
+_RECENT_MAX = 10
+
+
+def load_recent_dirs() -> list:
+    data = read_json(_RECENT_PATH)
+    if isinstance(data, list):
+        return [p for p in data if Path(p).exists()]
+    return []
+
+
+def save_recent_dirs(dirs: list):
+    _RECENT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _RECENT_PATH.write_text(json.dumps(dirs, indent=2))
+
+
+def add_recent_dir(builddir: Path) -> list:
+    entry = str(builddir.resolve())
+    dirs = [d for d in load_recent_dirs() if d != entry]
+    dirs.insert(0, entry)
+    dirs = dirs[:_RECENT_MAX]
+    save_recent_dirs(dirs)
+    return dirs
 
 
 class MesonSetupDialog(QDialog):
@@ -404,15 +430,22 @@ class ValueWidget(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, builddir: Path):
+    def __init__(self, builddir):
         super().__init__()
         self._builddir = builddir
         self._test_items = []
         self._source_dir = None
         self._changed = []
-        self.setWindowTitle(f'Meson Options — {builddir}')
+        self.setWindowTitle('mesonfe' if builddir is None else f'Meson Options — {builddir}')
         screen = QApplication.primaryScreen().availableGeometry()
         self.resize(int(screen.width() * 0.8), int(screen.height() * 0.8))
+
+        file_menu = self.menuBar().addMenu('File')
+        file_menu.addAction('Open Build Directory…').triggered.connect(self._open_build_dir)
+        self._recent_menu = file_menu.addMenu('Recently Opened')
+        file_menu.addSeparator()
+        file_menu.addAction('Quit').triggered.connect(self.close)
+        self._refresh_recent_menu()
 
         build_menu = self.menuBar().addMenu('Build')
         self._save_rc_action = build_menu.addAction('Save options to .mesonferc')
@@ -436,9 +469,20 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.TopDockWidgetArea, self._changed_dock)
         self._changed_dock.hide()
 
-        self._rebuild()
+        if builddir is not None:
+            self._rebuild()
+        else:
+            placeholder = QWidget()
+            lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory…')
+            lbl.setAlignment(Qt.AlignCenter)
+            QVBoxLayout(placeholder).addWidget(lbl)
+            self.setCentralWidget(placeholder)
+            self.statusBar().showMessage('No build directory')
 
     def _rebuild(self):
+        if self._builddir:
+            add_recent_dir(self._builddir)
+        self._refresh_recent_menu()
         options, setups, source_dir, project_name = load_project_data(self._builddir)
         self._options = options
         self._setups = setups
@@ -614,6 +658,37 @@ class MainWindow(QMainWindow):
         dlg.exec_()
         self._rebuild()
 
+    def _refresh_recent_menu(self):
+        self._recent_menu.clear()
+        dirs = load_recent_dirs()
+        if dirs:
+            for path in dirs:
+                action = self._recent_menu.addAction(path)
+                action.triggered.connect(lambda checked, p=path: self._load_builddir(Path(p)))
+            self._recent_menu.addSeparator()
+            self._recent_menu.addAction('Clear Recent').triggered.connect(self._clear_recent)
+        else:
+            empty = self._recent_menu.addAction('(empty)')
+            empty.setEnabled(False)
+
+    def _open_build_dir(self):
+        path = QFileDialog.getExistingDirectory(self, 'Select Build Directory')
+        if path:
+            self._load_builddir(Path(path))
+
+    def _load_builddir(self, builddir: Path):
+        if not _is_build_dir(builddir):
+            QMessageBox.warning(self, 'Not a build directory',
+                                f'{builddir} does not look like a Meson build directory.')
+            return
+        self._builddir = builddir
+        self.setWindowTitle(f'Meson Options — {builddir}')
+        self._rebuild()
+
+    def _clear_recent(self):
+        save_recent_dirs([])
+        self._refresh_recent_menu()
+
     def _jump_to_option(self, row, _col):
         name = self._changed_dock.widget().item(row, 0).text()
         for r in range(self._tbl.rowCount()):
@@ -716,12 +791,6 @@ def main():
     app = QApplication(sys.argv)
     _apply_dark_theme(app)
     builddir = find_builddir()
-    if not builddir.exists():
-        QMessageBox.critical(
-            None, 'Build directory not found',
-            f'{builddir} does not exist.\nRun "meson setup" first, or pass the build directory as an argument.',
-        )
-        sys.exit(1)
     win = MainWindow(builddir)
     win.show()
     sys.exit(app.exec_())

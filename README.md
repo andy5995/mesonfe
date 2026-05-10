@@ -5,9 +5,12 @@ A PyQt5 GUI frontend for browsing and editing [Meson](https://mesonbuild.com/) b
 ## Features
 
 - Displays all build options with their current values and descriptions
-- Highlights options that differ from their defaults (from `meson_options.txt` and `meson-private/cmd_line.txt`)
+- **Changed from defaults** — dockable panel (top or bottom) showing options that differ from their defaults; click a row to jump to it in the main table
 - Filter options by name or description
 - Apply changes via `meson configure`
+- **File menu**
+  - Open any build directory via a directory picker
+  - Recently opened build directories (stored in `~/.config/mesonfe/recent.json`)
 - **Build menu**
   - Save current non-default options to `.mesonferc`
   - Run `meson setup` using saved options from `.mesonferc`, with a preview of what will be applied and what will be reset
@@ -16,41 +19,47 @@ A PyQt5 GUI frontend for browsing and editing [Meson](https://mesonbuild.com/) b
   - Individual suites
   - Named test setups (`add_test_setup`)
   - Sequential output streamed in a single window
+- **Help → About** — shows version
 
 ## Dependencies
 
 - Python 3
 - PyQt5
+- platformdirs
 - meson
 
 ## Usage
 
 ```sh
-mesonfe                    # auto-detect build directory via .mesonferc or builddir/
+mesonfe                    # auto-detect build directory via .mesonferc or open picker
 mesonfe /path/to/builddir  # explicit build directory
 ```
 
-The build directory must already exist (run `meson setup` first).
+If no build directory is found automatically, the window opens and you can use
+**File → Open Build Directory…** to select one.
 
 ## Configuration
 
-Place `.mesonferc` in your project root or its parent. `mesonfe` walks up one directory level when searching for it.
+Place `.mesonferc` in your project root or its parent. `mesonfe` walks up one
+directory level when searching for it.
 
 ```ini
-defaultbuilddirdir = builddir
+default_builddir = builddir
 ```
 
-The **Build → Save options to .mesonferc** action adds an `[options]` section to this file:
+The **Build → Save options to .mesonferc** action adds an `[options]` section:
 
 ```ini
-defaultbuilddirdir = builddir
+default_builddir = builddir
 
 [options]
 b_sanitize = address,undefined
 gen_protobuf = true
 ```
 
-**Build → Setup from .mesonferc** runs `meson setup` with these options as `-D` flags, showing a confirmation first so you can see what will be applied and what currently-set options are not in the file (and will reset to default).
+**Build → Setup from .mesonferc** runs `meson setup` with these options as `-D`
+flags, showing a confirmation first so you can see what will be applied and what
+currently-set options are not in the file (and will reset to default).
 
 ## Build & install
 
@@ -59,4 +68,6 @@ meson setup builddir
 meson install -C builddir
 ```
 
-Installs `mesonfe` to `bindir` (default `/usr/local/bin`). Requires `pytest` for `ninja test`.
+Installs `mesonfe` to `bindir` (default `/usr/local/bin`) and a `mesonfe` Python
+package (containing the version module) to the Python site-packages directory.
+Requires `pytest` for `ninja test`.
