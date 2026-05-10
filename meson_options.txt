@@ -1,0 +1,2 @@
+option('docdir', type: 'string', value: '',
+  description: 'Documentation install directory (default: datadir/doc/project_name)')

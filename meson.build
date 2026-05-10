@@ -6,10 +6,14 @@ install_data(
     install_mode: 'rwxr-xr-x',
 )
 
+_docdir = get_option('docdir')
+if _docdir == ''
+    _docdir = get_option('datadir') / 'doc' / meson.project_name()
+endif
 install_data(
     'README.md',
     'LICENSE',
-    install_dir: get_option('datadir') / 'doc' / meson.project_name(),
+    install_dir: _docdir,
 )
 
 py = import('python').find_installation('python3')
