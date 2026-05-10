@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 import json
 import subprocess
@@ -722,7 +723,8 @@ class MainWindow(QMainWindow):
                 continue
             w = self._tbl.cellWidget(r, 2)
             if w.current() != w.original():
-                defs.append(f"-D{self._options[r]['name']}={w.current()}")
+                val = os.path.expandvars(os.path.expanduser(w.current()))
+                defs.append(f"-D{self._options[r]['name']}={val}")
 
         if not defs:
             QMessageBox.information(self, 'No changes', 'No options were modified.')
