@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QListWidget, QListWidgetItem, QCheckBox,
 )
 from PyQt5.QtCore import Qt, QProcess
-from PyQt5.QtGui import QFont, QColor, QTextCursor
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette
 
 
 def find_builddir() -> Path:
@@ -445,7 +445,7 @@ class MainWindow(QMainWindow):
             for r, (opt, dflt) in enumerate(changed):
                 tbl.setItem(r, 0, QTableWidgetItem(opt['name']))
                 cur = QTableWidgetItem(str(opt['value']))
-                cur.setForeground(QColor('#c03030'))
+                cur.setForeground(QColor('#ff6b6b'))
                 tbl.setItem(r, 1, cur)
                 tbl.setItem(r, 2, QTableWidgetItem('—' if dflt is None else str(dflt)))
             gl.addWidget(tbl)
@@ -595,8 +595,57 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, 'Error', result.stderr or result.stdout or 'meson configure failed')
 
 
+def _apply_dark_theme(app):
+    app.setStyle('Fusion')
+    p = QPalette()
+    p.setColor(QPalette.Window,          QColor(53, 53, 53))
+    p.setColor(QPalette.WindowText,      Qt.white)
+    p.setColor(QPalette.Base,            QColor(28, 28, 28))
+    p.setColor(QPalette.AlternateBase,   QColor(53, 53, 53))
+    p.setColor(QPalette.ToolTipBase,     Qt.black)
+    p.setColor(QPalette.ToolTipText,     Qt.white)
+    p.setColor(QPalette.Text,            Qt.white)
+    p.setColor(QPalette.Button,          QColor(53, 53, 53))
+    p.setColor(QPalette.ButtonText,      Qt.white)
+    p.setColor(QPalette.BrightText,      Qt.red)
+    p.setColor(QPalette.Link,            QColor(42, 130, 218))
+    p.setColor(QPalette.Highlight,       QColor(42, 130, 218))
+    p.setColor(QPalette.HighlightedText, Qt.black)
+    p.setColor(QPalette.Disabled, QPalette.Text,       QColor(128, 128, 128))
+    p.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(128, 128, 128))
+    app.setPalette(p)
+    app.setStyleSheet("""
+        QTableView {
+            gridline-color: #666666;
+        }
+        QHeaderView::section {
+            background-color: #3a3a3a;
+            border: 1px solid #555555;
+            padding: 4px;
+        }
+        QCheckBox::indicator,
+        QListView::indicator {
+            width: 15px;
+            height: 15px;
+            border: 2px solid #888888;
+            border-radius: 3px;
+            background: #1c1c1c;
+        }
+        QCheckBox::indicator:checked,
+        QListView::indicator:checked {
+            background: #2a82da;
+            border-color: #2a82da;
+        }
+        QCheckBox::indicator:unchecked:hover,
+        QListView::indicator:unchecked:hover {
+            border-color: #aaaaaa;
+        }
+    """)
+
+
 def main():
     app = QApplication(sys.argv)
+    _apply_dark_theme(app)
     builddir = find_builddir()
     if not builddir.exists():
         QMessageBox.critical(
