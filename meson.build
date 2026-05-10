@@ -1,7 +1,7 @@
 project('mesonfe', version: '0.0.1', license: 'MIT', meson_version: '>= 0.56.0')
 
 install_data(
-    'mesonfe',
+    meson.project_name(),
     install_dir: get_option('bindir'),
     install_mode: 'rwxr-xr-x',
 )
@@ -19,8 +19,20 @@ install_data(
 py = import('python').find_installation('python3')
 pyqt5_check = run_command(py, '-c', 'import PyQt5', check: false)
 if pyqt5_check.returncode() != 0
-    warning('PyQt5 not found; mesonfe requires PyQt5 to run')
+    warning(
+        'PyQt5 not found; ' + meson.project_name() + ' requires PyQt5 to run',
+    )
 endif
+
+_version_py = configure_file(
+    input: 'src/mesonfe/_version.py.in',
+    output: '_version.py',
+    configuration: {'VERSION': meson.project_version()},
+)
+py.install_sources(
+    ['src/mesonfe/__init__.py', _version_py],
+    subdir: 'mesonfe',
+)
 
 pytest = find_program('pytest', required: false)
 if pytest.found()

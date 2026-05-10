@@ -15,6 +15,11 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QProcess
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette
 
+try:
+    from mesonfe._version import VERSION
+except ImportError:
+    VERSION = 'unknown'
+
 
 def _is_build_dir(path: Path) -> bool:
     return (path / 'meson-info').is_dir() or (path / 'meson-private').is_dir()
@@ -420,6 +425,9 @@ class MainWindow(QMainWindow):
         self._run_tests_action.triggered.connect(self._select_and_run_tests)
         self._run_tests_action.setEnabled(False)
 
+        help_menu = self.menuBar().addMenu('Help')
+        help_menu.addAction('About').triggered.connect(self._show_about)
+
         self._rebuild()
 
     def _rebuild(self):
@@ -594,6 +602,15 @@ class MainWindow(QMainWindow):
         dlg = MesonSetupDialog(self, args)
         dlg.exec_()
         self._rebuild()
+
+    def _show_about(self):
+        QMessageBox.about(
+            self,
+            'About mesonfe',
+            f'<b>mesonfe</b> {"v" + VERSION if VERSION != "unknown" else "(development)"}<br>'
+            'A PyQt5 GUI frontend for Meson build options.<br><br>'
+            'License: MIT',
+        )
 
     def _apply(self):
         defs = []
