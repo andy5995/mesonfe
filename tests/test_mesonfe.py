@@ -88,13 +88,13 @@ def test_find_builddir_rc_default_fallback(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / '.mesonferc').write_text('# no builddir key\n')
     with patch.object(sys, 'argv', ['mesonfe']):
-        assert find_builddir() == Path('_build')
+        assert find_builddir() == Path('builddir')
 
 
 def test_find_builddir_no_rc(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     with patch.object(sys, 'argv', ['mesonfe']):
-        assert find_builddir() == Path('_build')
+        assert find_builddir() == Path('builddir')
 
 
 # ---------------------------------------------------------------------------

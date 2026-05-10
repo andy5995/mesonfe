@@ -26,7 +26,7 @@ A PyQt5 GUI frontend for browsing and editing [Meson](https://mesonbuild.com/) b
 ## Usage
 
 ```sh
-mesonfe                    # auto-detect build directory via .mesonferc or _build/
+mesonfe                    # auto-detect build directory via .mesonferc or builddir/
 mesonfe /path/to/builddir  # explicit build directory
 ```
 
@@ -37,13 +37,13 @@ The build directory must already exist (run `meson setup` first).
 Place `.mesonferc` in your project root or its parent. `mesonfe` walks up one directory level when searching for it.
 
 ```ini
-default_builddir = _build
+defaultbuilddirdir = builddir
 ```
 
 The **Build → Save options to .mesonferc** action adds an `[options]` section to this file:
 
 ```ini
-default_builddir = _build
+defaultbuilddirdir = builddir
 
 [options]
 b_sanitize = address,undefined
@@ -55,8 +55,8 @@ gen_protobuf = true
 ## Build & install
 
 ```sh
-meson setup _build
-meson install -C _build
+meson setup builddir
+meson install -C builddir
 ```
 
 Installs `mesonfe` to `bindir` (default `/usr/local/bin`). Requires `pytest` for `ninja test`.

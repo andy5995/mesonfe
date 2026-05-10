@@ -29,8 +29,8 @@ def find_builddir() -> Path:
                 key, _, val = line.partition('=')
                 if key.strip() == 'default_builddir':
                     return base / val.strip().strip('"')
-            return base / '_build'
-    return Path('_build')
+            return base / 'builddir'
+    return Path('builddir')
 
 
 def read_json(path: Path):
