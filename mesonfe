@@ -320,6 +320,86 @@ class MesonCompileDialog(QDialog):
         super().closeEvent(event)
 
 
+class MesonInstallDialog(QDialog):
+    def __init__(self, parent: QWidget, builddir: Path):
+        super().__init__(parent)
+        self.setWindowTitle('meson install')
+        self.resize(720, 520)
+        layout = QVBoxLayout(self)
+
+        form = QHBoxLayout()
+        self._dry_run   = QCheckBox('Dry run')
+        self._no_rebuild = QCheckBox('No rebuild')
+        self._only_changed = QCheckBox('Only changed')
+        self._strip     = QCheckBox('Strip')
+        self._quiet     = QCheckBox('Quiet')
+        for w in (self._dry_run, self._no_rebuild, self._only_changed,
+                  self._strip, self._quiet):
+            form.addWidget(w)
+        form.addSpacing(12)
+        form.addWidget(QLabel('Destdir:'))
+        self._destdir = QLineEdit()
+        self._destdir.setPlaceholderText('(none)')
+        form.addWidget(self._destdir)
+        form.addStretch()
+        layout.addLayout(form)
+
+        self._out = QTextEdit()
+        self._out.setReadOnly(True)
+        self._out.setFont(QFont('monospace', 10))
+        layout.addWidget(self._out)
+
+        btns = QHBoxLayout()
+        self._run_btn = QPushButton('Run')
+        self._run_btn.clicked.connect(self._run)
+        self._close_btn = QPushButton('Close')
+        self._close_btn.clicked.connect(self.accept)
+        btns.addStretch()
+        btns.addWidget(self._run_btn)
+        btns.addWidget(self._close_btn)
+        layout.addLayout(btns)
+
+        self._builddir = builddir
+        self._proc = QProcess(self)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyRead.connect(
+            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
+        )
+        self._proc.finished.connect(self._on_finished)
+
+    def _run(self):
+        self._out.clear()
+        self._run_btn.setEnabled(False)
+        args = ['install', '-C', str(self._builddir)]
+        if self._dry_run.isChecked():
+            args.append('--dry-run')
+        if self._no_rebuild.isChecked():
+            args.append('--no-rebuild')
+        if self._only_changed.isChecked():
+            args.append('--only-changed')
+        if self._strip.isChecked():
+            args.append('--strip')
+        if self._quiet.isChecked():
+            args.append('--quiet')
+        if self._destdir.text().strip():
+            args += ['--destdir', self._destdir.text().strip()]
+        self._proc.start('meson', args)
+
+    def _append(self, text: str):
+        self._out.moveCursor(QTextCursor.End)
+        self._out.insertPlainText(text)
+
+    def _on_finished(self, code: int, _status):
+        self._append(f'\n[exited {code}]')
+        self._run_btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        if self._proc.state() != QProcess.NotRunning:
+            self._proc.kill()
+            self._proc.waitForFinished(2000)
+        super().closeEvent(event)
+
+
 class TestOutputDialog(QDialog):
     def __init__(self, parent: QWidget, name: str, builddir: Path):
         super().__init__(parent)
@@ -691,9 +771,7 @@ class MainWindow(QMainWindow):
         MesonCompileDialog(self, self._builddir).exec_()
 
     def _run_install(self):
-        dlg = MesonSetupDialog(self, ['install', '-C', str(self._builddir)])
-        dlg.setWindowTitle('meson install')
-        dlg.exec_()
+        MesonInstallDialog(self, self._builddir).exec_()
 
     def _select_and_run_tests(self):
         dlg = TestRunSelectDialog(self, self._test_items)
