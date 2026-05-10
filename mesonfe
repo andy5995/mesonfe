@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
     QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog, QSpinBox,
 )
 from PyQt5.QtCore import Qt, QProcess
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon
 from platformdirs import user_config_dir
 
 try:
@@ -970,6 +970,13 @@ def _apply_dark_theme(app):
 def main():
     app = QApplication(sys.argv)
     _apply_dark_theme(app)
+    icon = QIcon.fromTheme('mesonfe')
+    if icon.isNull():
+        _local = Path(__file__).parent / 'data' / 'mesonfe.svg'
+        if _local.exists():
+            icon = QIcon(str(_local))
+    if not icon.isNull():
+        app.setWindowIcon(icon)
     builddir = find_builddir()
     win = MainWindow(builddir)
     win.show()
