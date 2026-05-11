@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
     QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog, QSpinBox,
-    QKeySequenceEdit,
+    QKeySequenceEdit, QToolBar, QAction,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon, QDesktopServices, QKeySequence
@@ -197,6 +197,8 @@ _DEFAULT_SHORTCUTS = {
     'tests_display':     ('Display Tests…',          'Ctrl+T'),
     'help_about':        ('About',                   'F1'),
     'help_keybindings':  ('Configure Keybindings…',  'Ctrl+,'),
+    'tools_open_terminal': ('Open Terminal…',         'Ctrl+Alt+T'),
+    'view_toolbar':        ('Show Toolbar',           ''),
 }
 
 
@@ -899,6 +901,29 @@ class MainWindow(QMainWindow):
         self._run_tests_action.triggered.connect(self._select_and_run_tests)
         self._run_tests_action.setEnabled(False)
 
+        self._open_terminal_action = QAction('Open Terminal…', self)
+        self._open_terminal_action.setToolTip('Open the build directory in a terminal')
+        _term_icon = QIcon.fromTheme('utilities-terminal')
+        if _term_icon.isNull():
+            _term_icon_path = Path(__file__).parent / 'data' / 'terminal.svg'
+            if _term_icon_path.exists():
+                _term_icon = QIcon(str(_term_icon_path))
+        if not _term_icon.isNull():
+            self._open_terminal_action.setIcon(_term_icon)
+        self._open_terminal_action.triggered.connect(self._open_terminal)
+        self._open_terminal_action.setEnabled(False)
+
+        tools_menu = self.menuBar().addMenu('Tools')
+        tools_menu.addAction(self._open_terminal_action)
+
+        view_menu = self.menuBar().addMenu('View')
+        self._toolbar = self.addToolBar('Main Toolbar')
+        self._toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self._toolbar.addAction(self._open_terminal_action)
+        self._toolbar_view_action = self._toolbar.toggleViewAction()
+        self._toolbar_view_action.setText('Show Toolbar')
+        view_menu.addAction(self._toolbar_view_action)
+
         help_menu = self.menuBar().addMenu('Help')
         self._about_action = help_menu.addAction('About')
         self._about_action.triggered.connect(self._show_about)
@@ -914,9 +939,11 @@ class MainWindow(QMainWindow):
             'meson_install':     ('Install…',               self._install_action),
             'meson_dist':        ('Dist…',                  self._dist_action),
             'meson_subprojects': ('Update Subprojects…',    self._subprojects_update_action),
-            'tests_display':     ('Display Tests…',         self._run_tests_action),
-            'help_about':        ('About',                  self._about_action),
-            'help_keybindings':  ('Configure Keybindings…', self._keybindings_action),
+            'tests_display':     ('Display Tests…',                   self._run_tests_action),
+            'help_about':        ('About',                            self._about_action),
+            'help_keybindings':  ('Configure Keybindings…',           self._keybindings_action),
+            'tools_open_terminal': ('Open Terminal…',                 self._open_terminal_action),
+            'view_toolbar':        ('Show Toolbar',                   self._toolbar_view_action),
         }
         self._apply_shortcuts(load_shortcuts())
 
@@ -1014,6 +1041,7 @@ class MainWindow(QMainWindow):
         self._install_action.setEnabled(True)
         self._dist_action.setEnabled(True)
         self._subprojects_update_action.setEnabled(bool(source_dir))
+        self._open_terminal_action.setEnabled(True)
 
         # All options
         grp = QGroupBox('Build Options')
@@ -1202,6 +1230,40 @@ class MainWindow(QMainWindow):
             f'<b>mesonfe</b> {"v" + VERSION if VERSION != "unknown" else "(development)"}<br>'
             'A PyQt5 GUI frontend for Meson build options.<br><br>'
             'License: MIT',
+        )
+
+    def _open_terminal(self):
+        if not self._builddir:
+            return
+        cwd = str(self._builddir.resolve(strict=False))
+        # Each entry is (cmd, popen_cwd): popen_cwd=None means cwd is already in cmd.
+        # DE-aware launchers come first; simple terminals that inherit the process cwd come last.
+        candidates = [
+            (['exo-open', '--launch', 'TerminalEmulator', '--working-directory', cwd], None),
+            (['x-terminal-emulator'],                                                   cwd),
+            (['gnome-terminal', f'--working-directory={cwd}'],                         None),
+            (['konsole', '--workdir', cwd],                                            None),
+            (['xfce4-terminal', '--working-directory', cwd],                           None),
+            (['xterm'],                                                                 cwd),
+            (['alacritty'],                                                             cwd),
+            (['kitty'],                                                                 cwd),
+            (['lxterminal'],                                                            cwd),
+            (['mate-terminal'],                                                         cwd),
+            (['tilix'],                                                                 cwd),
+        ]
+        term = os.environ.get('TERMINAL', '')
+        if term:
+            candidates.insert(0, ([term], cwd))
+        for cmd, popen_cwd in candidates:
+            try:
+                subprocess.Popen(cmd, cwd=popen_cwd)
+                return
+            except (FileNotFoundError, OSError):
+                continue
+        QMessageBox.warning(
+            self, 'No terminal found',
+            'Could not find a terminal emulator.\n'
+            'Set the $TERMINAL environment variable to your preferred terminal.',
         )
 
     def _apply(self):
