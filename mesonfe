@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import platform
 import sys
 import json
 import subprocess
@@ -1236,21 +1237,36 @@ class MainWindow(QMainWindow):
         if not self._builddir:
             return
         cwd = str(self._builddir.resolve(strict=False))
-        # Each entry is (cmd, popen_cwd): popen_cwd=None means cwd is already in cmd.
-        # DE-aware launchers come first; simple terminals that inherit the process cwd come last.
-        candidates = [
-            (['exo-open', '--launch', 'TerminalEmulator', '--working-directory', cwd], None),
-            (['x-terminal-emulator'],                                                   cwd),
-            (['gnome-terminal', f'--working-directory={cwd}'],                         None),
-            (['konsole', '--workdir', cwd],                                            None),
-            (['xfce4-terminal', '--working-directory', cwd],                           None),
-            (['xterm'],                                                                 cwd),
-            (['alacritty'],                                                             cwd),
-            (['kitty'],                                                                 cwd),
-            (['lxterminal'],                                                            cwd),
-            (['mate-terminal'],                                                         cwd),
-            (['tilix'],                                                                 cwd),
-        ]
+        system = platform.system()
+        # Each entry: (cmd, popen_cwd) — popen_cwd=None means the dir is already in cmd args.
+        if system == 'Windows':
+            candidates = [
+                (['wt.exe', '-d', cwd], None),   # Windows Terminal
+                (['pwsh.exe'],          cwd),     # PowerShell Core
+                (['powershell.exe'],    cwd),     # Windows PowerShell
+                (['cmd.exe'],           cwd),     # Command Prompt
+            ]
+        elif system == 'Darwin':
+            candidates = [
+                (['open', '-a', 'Terminal', cwd], None),  # Terminal.app
+                (['open', '-a', 'iTerm', cwd],    None),  # iTerm2
+            ]
+        else:
+            # DE-aware launchers first; terminals that need explicit flags next;
+            # simple terminals that inherit process cwd last.
+            candidates = [
+                (['exo-open', '--launch', 'TerminalEmulator', '--working-directory', cwd], None),
+                (['x-terminal-emulator'],                                                   cwd),
+                (['gnome-terminal', f'--working-directory={cwd}'],                         None),
+                (['konsole', '--workdir', cwd],                                            None),
+                (['xfce4-terminal', '--working-directory', cwd],                           None),
+                (['xterm'],                                                                 cwd),
+                (['alacritty'],                                                             cwd),
+                (['kitty'],                                                                 cwd),
+                (['lxterminal'],                                                            cwd),
+                (['mate-terminal'],                                                         cwd),
+                (['tilix'],                                                                 cwd),
+            ]
         term = os.environ.get('TERMINAL', '')
         if term:
             candidates.insert(0, ([term], cwd))
