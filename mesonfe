@@ -400,6 +400,97 @@ class MesonInstallDialog(QDialog):
         super().closeEvent(event)
 
 
+class MesonSubprojectsUpdateDialog(QDialog):
+    def __init__(self, parent: QWidget, source_dir: Path):
+        super().__init__(parent)
+        self.setWindowTitle('meson subprojects update')
+        self.resize(720, 480)
+        layout = QVBoxLayout(self)
+
+        form = QHBoxLayout()
+        self._reset = QCheckBox('Reset')
+        self._reset.setToolTip('Hard reset to wrap revision (git only)')
+        self._allow_insecure = QCheckBox('Allow insecure')
+        for w in (self._reset, self._allow_insecure):
+            form.addWidget(w)
+        form.addSpacing(12)
+        form.addWidget(QLabel('Types:'))
+        self._types = QLineEdit()
+        self._types.setPlaceholderText('all')
+        self._types.setToolTip('Comma-separated: file, git, hg, svn, redirect')
+        form.addWidget(self._types)
+        form.addSpacing(12)
+        form.addWidget(QLabel('Jobs:'))
+        self._jobs = QSpinBox()
+        self._jobs.setRange(0, 256)
+        self._jobs.setValue(0)
+        self._jobs.setSpecialValueText('default')
+        form.addWidget(self._jobs)
+        form.addSpacing(12)
+        form.addWidget(QLabel('Pattern:'))
+        self._pattern = QLineEdit()
+        self._pattern.setPlaceholderText('(all)')
+        self._pattern.setToolTip('Space-separated subproject name patterns')
+        form.addWidget(self._pattern)
+        form.addStretch()
+        layout.addLayout(form)
+
+        self._out = QTextEdit()
+        self._out.setReadOnly(True)
+        self._out.setFont(QFont('monospace', 10))
+        layout.addWidget(self._out)
+
+        btns = QHBoxLayout()
+        self._run_btn = QPushButton('Run')
+        self._run_btn.clicked.connect(self._run)
+        self._close_btn = QPushButton('Close')
+        self._close_btn.clicked.connect(self.accept)
+        btns.addStretch()
+        btns.addWidget(self._run_btn)
+        btns.addWidget(self._close_btn)
+        layout.addLayout(btns)
+
+        self._source_dir = source_dir
+        self._proc = QProcess(self)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyRead.connect(
+            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
+        )
+        self._proc.finished.connect(self._on_finished)
+
+    def _run(self):
+        self._out.clear()
+        self._run_btn.setEnabled(False)
+        args = ['subprojects', 'update', '--sourcedir', str(self._source_dir)]
+        if self._reset.isChecked():
+            args.append('--reset')
+        if self._allow_insecure.isChecked():
+            args.append('--allow-insecure')
+        types = self._types.text().strip()
+        if types:
+            args += ['--types', types]
+        if self._jobs.value() > 0:
+            args += ['-j', str(self._jobs.value())]
+        pattern = self._pattern.text().strip()
+        if pattern:
+            args.extend(pattern.split())
+        self._proc.start('meson', args)
+
+    def _append(self, text: str):
+        self._out.moveCursor(QTextCursor.End)
+        self._out.insertPlainText(text)
+
+    def _on_finished(self, code: int, _status):
+        self._append(f'\n[exited {code}]')
+        self._run_btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        if self._proc.state() != QProcess.NotRunning:
+            self._proc.kill()
+            self._proc.waitForFinished(2000)
+        super().closeEvent(event)
+
+
 class MesonDistDialog(QDialog):
     def __init__(self, parent: QWidget, builddir: Path):
         super().__init__(parent)
@@ -720,6 +811,9 @@ class MainWindow(QMainWindow):
         self._dist_action = meson_menu.addAction('Dist…')
         self._dist_action.triggered.connect(self._run_dist)
         self._dist_action.setEnabled(False)
+        self._subprojects_update_action = meson_menu.addAction('Update Subprojects…')
+        self._subprojects_update_action.triggered.connect(self._run_subprojects_update)
+        self._subprojects_update_action.setEnabled(False)
 
         self._run_tests_action = self.menuBar().addMenu('Tests').addAction('Display Tests…')
         self._run_tests_action.triggered.connect(self._select_and_run_tests)
@@ -821,6 +915,7 @@ class MainWindow(QMainWindow):
         self._compile_action.setEnabled(True)
         self._install_action.setEnabled(True)
         self._dist_action.setEnabled(True)
+        self._subprojects_update_action.setEnabled(bool(source_dir))
 
         # All options
         grp = QGroupBox('Build Options')
@@ -875,6 +970,9 @@ class MainWindow(QMainWindow):
 
     def _run_dist(self):
         MesonDistDialog(self, self._builddir).exec_()
+
+    def _run_subprojects_update(self):
+        MesonSubprojectsUpdateDialog(self, self._source_dir).exec_()
 
     def _select_and_run_tests(self):
         dlg = TestRunSelectDialog(self, self._test_items)
