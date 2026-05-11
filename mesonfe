@@ -12,9 +12,10 @@ from PyQt5.QtWidgets import (
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
     QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog, QSpinBox,
+    QKeySequenceEdit,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon, QDesktopServices
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon, QDesktopServices, QKeySequence
 from platformdirs import user_config_dir
 
 try:
@@ -182,6 +183,34 @@ def save_mesonferc_options(rc_path: Path, options: dict):
 _RECENT_PATH = Path(user_config_dir('mesonfe')) / 'recent.json'
 _RECENT_MAX = 10
 
+_SHORTCUT_PATH = Path(user_config_dir('mesonfe')) / 'keybindings.json'
+
+_DEFAULT_SHORTCUTS = {
+    'file_open':         ('Open Build Directory…',   'Ctrl+O'),
+    'file_quit':         ('Quit',                    'Ctrl+Q'),
+    'build_save':        ('Save options to .mesonferc', 'Ctrl+S'),
+    'build_setup':       ('Setup from .mesonferc',   'Ctrl+Shift+S'),
+    'meson_compile':     ('Compile…',                'Ctrl+B'),
+    'meson_install':     ('Install…',                'Ctrl+I'),
+    'meson_dist':        ('Dist…',                   'Ctrl+D'),
+    'meson_subprojects': ('Update Subprojects…',     'Ctrl+U'),
+    'tests_display':     ('Display Tests…',          'Ctrl+T'),
+    'help_about':        ('About',                   'F1'),
+    'help_keybindings':  ('Configure Keybindings…',  'Ctrl+,'),
+}
+
+
+def load_shortcuts() -> dict:
+    data = read_json(_SHORTCUT_PATH)
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+def save_shortcuts(shortcuts: dict):
+    _SHORTCUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _SHORTCUT_PATH.write_text(json.dumps(shortcuts, indent=2))
+
 
 def load_recent_dirs() -> list:
     data = read_json(_RECENT_PATH)
@@ -202,6 +231,55 @@ def add_recent_dir(builddir: Path) -> list:
     dirs = dirs[:_RECENT_MAX]
     save_recent_dirs(dirs)
     return dirs
+
+
+class KeybindingsDialog(QDialog):
+    def __init__(self, parent, action_map: dict):
+        super().__init__(parent)
+        self.setWindowTitle('Configure Keybindings')
+        self.resize(480, 380)
+        layout = QVBoxLayout(self)
+
+        self._editors = {}
+        tbl = QTableWidget(len(action_map), 2, self)
+        tbl.setHorizontalHeaderLabels(['Action', 'Shortcut'])
+        tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        tbl.verticalHeader().setVisible(False)
+        tbl.setSelectionMode(QTableWidget.NoSelection)
+        tbl.setEditTriggers(QTableWidget.NoEditTriggers)
+
+        for row, (action_id, (name, action)) in enumerate(action_map.items()):
+            item = QTableWidgetItem(name)
+            item.setFlags(Qt.ItemIsEnabled)
+            tbl.setItem(row, 0, item)
+            editor = QKeySequenceEdit(action.shortcut())
+            self._editors[action_id] = editor
+            tbl.setCellWidget(row, 1, editor)
+
+        tbl.resizeRowsToContents()
+        layout.addWidget(tbl)
+
+        btns = QHBoxLayout()
+        reset_btn = QPushButton('Reset to Defaults')
+        reset_btn.clicked.connect(self._reset)
+        ok_btn = QPushButton('OK')
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton('Cancel')
+        cancel_btn.clicked.connect(self.reject)
+        btns.addWidget(reset_btn)
+        btns.addStretch()
+        btns.addWidget(ok_btn)
+        btns.addWidget(cancel_btn)
+        layout.addLayout(btns)
+
+    def _reset(self):
+        for action_id, editor in self._editors.items():
+            editor.setKeySequence(QKeySequence(_DEFAULT_SHORTCUTS[action_id][1]))
+
+    def get_shortcuts(self) -> dict:
+        return {aid: self._editors[aid].keySequence().toString()
+                for aid in self._editors}
 
 
 class MesonSetupDialog(QDialog):
@@ -787,10 +865,12 @@ class MainWindow(QMainWindow):
         self.resize(int(screen.width() * 0.8), int(screen.height() * 0.8))
 
         file_menu = self.menuBar().addMenu('File')
-        file_menu.addAction('Open Build Directory…').triggered.connect(self._open_build_dir)
+        self._open_action = file_menu.addAction('Open Build Directory…')
+        self._open_action.triggered.connect(self._open_build_dir)
         self._recent_menu = file_menu.addMenu('Recently Opened')
         file_menu.addSeparator()
-        file_menu.addAction('Quit').triggered.connect(self.close)
+        self._quit_action = file_menu.addAction('Quit')
+        self._quit_action.triggered.connect(self.close)
         self._refresh_recent_menu()
 
         build_menu = self.menuBar().addMenu('Build')
@@ -820,7 +900,25 @@ class MainWindow(QMainWindow):
         self._run_tests_action.setEnabled(False)
 
         help_menu = self.menuBar().addMenu('Help')
-        help_menu.addAction('About').triggered.connect(self._show_about)
+        self._about_action = help_menu.addAction('About')
+        self._about_action.triggered.connect(self._show_about)
+        self._keybindings_action = help_menu.addAction('Configure Keybindings…')
+        self._keybindings_action.triggered.connect(self._configure_keybindings)
+
+        self._action_map = {
+            'file_open':         ('Open Build Directory…', self._open_action),
+            'file_quit':         ('Quit',                  self._quit_action),
+            'build_save':        ('Save options to .mesonferc', self._save_rc_action),
+            'build_setup':       ('Setup from .mesonferc',  self._setup_rc_action),
+            'meson_compile':     ('Compile…',               self._compile_action),
+            'meson_install':     ('Install…',               self._install_action),
+            'meson_dist':        ('Dist…',                  self._dist_action),
+            'meson_subprojects': ('Update Subprojects…',    self._subprojects_update_action),
+            'tests_display':     ('Display Tests…',         self._run_tests_action),
+            'help_about':        ('About',                  self._about_action),
+            'help_keybindings':  ('Configure Keybindings…', self._keybindings_action),
+        }
+        self._apply_shortcuts(load_shortcuts())
 
         self._changed_dock = QDockWidget('Changed from defaults', self)
         self._changed_dock.setAllowedAreas(Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea)
@@ -1084,6 +1182,18 @@ class MainWindow(QMainWindow):
         self._changed_dock.setStyleSheet(
             'QDockWidget { border-top: 4px solid #8ec6f0; border-left: 4px solid #8ec6f0; border-bottom: 4px solid #2a5a8a; border-right: 4px solid #2a5a8a; }' if floating else ''
         )
+
+    def _apply_shortcuts(self, overrides: dict):
+        for action_id, (_name, action) in self._action_map.items():
+            key = overrides.get(action_id, _DEFAULT_SHORTCUTS[action_id][1])
+            action.setShortcut(QKeySequence(key))
+
+    def _configure_keybindings(self):
+        dialog = KeybindingsDialog(self, self._action_map)
+        if dialog.exec_() == QDialog.Accepted:
+            shortcuts = dialog.get_shortcuts()
+            save_shortcuts(shortcuts)
+            self._apply_shortcuts(shortcuts)
 
     def _show_about(self):
         QMessageBox.about(
