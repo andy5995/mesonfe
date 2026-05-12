@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
     QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog, QSpinBox,
-    QKeySequenceEdit, QAction, QSplitter, QMenu,
+    QKeySequenceEdit, QAction, QSplitter, QMenu, QAbstractButton,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl, QEvent, QTimer
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon, QDesktopServices, QKeySequence, QCursor
@@ -782,6 +782,15 @@ class TestPanel(QWidget):
         super().closeEvent(event)
 
 
+def _set_dock_tooltips(dock):
+    for btn in dock.findChildren(QAbstractButton):
+        name = btn.objectName()
+        if name == 'qt_dockwidget_floatbutton':
+            btn.setToolTip('Float / dock panel')
+        elif name == 'qt_dockwidget_closebutton':
+            btn.setToolTip('Hide panel')
+
+
 class PanelDock(QDockWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1069,6 +1078,10 @@ class MainWindow(QMainWindow):
         for _dock in (self._build_options_dock, self._compile_dock, self._install_dock,
                       self._dist_dock, self._subprojects_dock, self._test_dock):
             _dock.setStyleSheet(_panel_style)
+
+        for _dock in (self._changed_dock, self._build_options_dock, self._compile_dock,
+                      self._install_dock, self._dist_dock, self._subprojects_dock, self._test_dock):
+            _set_dock_tooltips(_dock)
 
         panels_menu = self.menuBar().addMenu('Panels')
         panels_menu.addAction(self._build_options_dock.toggleViewAction())
