@@ -13,10 +13,10 @@ from PyQt5.QtWidgets import (
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
     QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog, QSpinBox,
-    QKeySequenceEdit, QAction, QSplitter,
+    QKeySequenceEdit, QAction, QSplitter, QMenu,
 )
-from PyQt5.QtCore import Qt, QProcess, QUrl
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon, QDesktopServices, QKeySequence
+from PyQt5.QtCore import Qt, QProcess, QUrl, QEvent, QTimer
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon, QDesktopServices, QKeySequence, QCursor
 from platformdirs import user_config_dir
 
 try:
@@ -780,6 +780,112 @@ class TestPanel(QWidget):
         super().closeEvent(event)
 
 
+class PanelDock(QDockWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._resizing = False
+        self._resize_edges = None
+        self._resize_start_pos = None
+        self._resize_start_geom = None
+        self._context_menu_pos = None
+        self._resize_timer = QTimer(self)
+        self._resize_timer.setInterval(16)
+        self._resize_timer.timeout.connect(self._poll_resize)
+
+    def contextMenuEvent(self, event):
+        if not self.isFloating():
+            return
+        self._context_menu_pos = self.mapFromGlobal(event.globalPos())
+        menu = QMenu(self)
+        menu.addAction('Resize').triggered.connect(self._begin_resize)
+        menu.exec_(event.globalPos())
+
+    def _begin_resize(self):
+        # Edge is based on where the user right-clicked, not where the menu closed
+        pos = self._context_menu_pos or self.rect().center()
+        self._resize_edges = self._edges_for_pos(pos)
+        self._resize_start_pos = QCursor.pos()
+        self._resize_start_geom = self.geometry()
+        self._resizing = True
+        QApplication.instance().installEventFilter(self)
+        QApplication.setOverrideCursor(self._cursor_for_pos(pos))
+        self._resize_timer.start()
+
+    def _cancel_resize(self):
+        self._resize_timer.stop()
+        self._resizing = False
+        QApplication.instance().removeEventFilter(self)
+        QApplication.restoreOverrideCursor()
+
+    def _poll_resize(self):
+        if self._resizing:
+            self._apply_resize(QCursor.pos() - self._resize_start_pos)
+
+    def eventFilter(self, obj, event):
+        if not self._resizing:
+            return super().eventFilter(obj, event)
+        t = event.type()
+        if t == QEvent.MouseButtonPress:
+            self._cancel_resize()
+            return True
+        if t == QEvent.MouseButtonRelease:
+            return True
+        if t == QEvent.KeyPress:
+            k = event.key()
+            step = 10
+            if k == Qt.Key_Escape:
+                self.setGeometry(self._resize_start_geom)
+                self._cancel_resize()
+                return True
+            if k in (Qt.Key_Return, Qt.Key_Enter):
+                self._cancel_resize()
+                return True
+            if k == Qt.Key_Right:
+                self.resize(self.width() + step, self.height())
+                return True
+            if k == Qt.Key_Left:
+                self.resize(max(100, self.width() - step), self.height())
+                return True
+            if k == Qt.Key_Down:
+                self.resize(self.width(), self.height() + step)
+                return True
+            if k == Qt.Key_Up:
+                self.resize(self.width(), max(100, self.height() - step))
+                return True
+        return super().eventFilter(obj, event)
+
+    def _apply_resize(self, delta):
+        g = self._resize_start_geom
+        edges = self._resize_edges
+        x, y, w, h = g.x(), g.y(), g.width(), g.height()
+        if edges & Qt.RightEdge:
+            w = max(100, g.width() + delta.x())
+        if edges & Qt.BottomEdge:
+            h = max(100, g.height() + delta.y())
+        if edges & Qt.LeftEdge:
+            new_w = max(100, g.width() - delta.x())
+            x = g.x() + g.width() - new_w
+            w = new_w
+        if edges & Qt.TopEdge:
+            new_h = max(100, g.height() - delta.y())
+            y = g.y() + g.height() - new_h
+            h = new_h
+        self.setGeometry(x, y, w, h)
+
+    def _edges_for_pos(self, pos):
+        # Always return a corner so movement in any direction resizes
+        h_edge = Qt.RightEdge if pos.x() >= self.width() / 2 else Qt.LeftEdge
+        v_edge = Qt.BottomEdge if pos.y() >= self.height() / 2 else Qt.TopEdge
+        return h_edge | v_edge
+
+    def _cursor_for_pos(self, pos):
+        right_half = pos.x() >= self.width() / 2
+        bottom_half = pos.y() >= self.height() / 2
+        if right_half == bottom_half:   # top-left or bottom-right corner
+            return Qt.SizeFDiagCursor
+        return Qt.SizeBDiagCursor
+
+
 class ValueWidget(QWidget):
     def __init__(self, opt: dict):
         super().__init__()
@@ -897,7 +1003,7 @@ class MainWindow(QMainWindow):
         self._changed_dock.hide()
 
         self._compile_panel = CompilePanel()
-        self._compile_dock = QDockWidget('Compile', self)
+        self._compile_dock = PanelDock('Compile', self)
         self._compile_dock.setObjectName('compile_dock')
         self._compile_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
         self._compile_dock.setWidget(self._compile_panel)
@@ -905,7 +1011,7 @@ class MainWindow(QMainWindow):
         self._compile_dock.hide()
 
         self._install_panel = InstallPanel()
-        self._install_dock = QDockWidget('Install', self)
+        self._install_dock = PanelDock('Install', self)
         self._install_dock.setObjectName('install_dock')
         self._install_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
         self._install_dock.setWidget(self._install_panel)
@@ -913,7 +1019,7 @@ class MainWindow(QMainWindow):
         self._install_dock.hide()
 
         self._dist_panel = DistPanel()
-        self._dist_dock = QDockWidget('Dist', self)
+        self._dist_dock = PanelDock('Dist', self)
         self._dist_dock.setObjectName('dist_dock')
         self._dist_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
         self._dist_dock.setWidget(self._dist_panel)
@@ -921,7 +1027,7 @@ class MainWindow(QMainWindow):
         self._dist_dock.hide()
 
         self._subprojects_panel = SubprojectsPanel()
-        self._subprojects_dock = QDockWidget('Subprojects Update', self)
+        self._subprojects_dock = PanelDock('Subprojects Update', self)
         self._subprojects_dock.setObjectName('subprojects_dock')
         self._subprojects_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
         self._subprojects_dock.setWidget(self._subprojects_panel)
@@ -929,7 +1035,7 @@ class MainWindow(QMainWindow):
         self._subprojects_dock.hide()
 
         self._test_panel = TestPanel()
-        self._test_dock = QDockWidget('Tests', self)
+        self._test_dock = PanelDock('Tests', self)
         self._test_dock.setObjectName('test_dock')
         self._test_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
         self._test_dock.setWidget(self._test_panel)
