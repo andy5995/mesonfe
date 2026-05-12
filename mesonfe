@@ -1002,7 +1002,7 @@ class MainWindow(QMainWindow):
 
         self._changed_dock = QDockWidget('Changed from defaults', self)
         self._changed_dock.setObjectName('changed_dock')
-        self._changed_dock.setAllowedAreas(Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea)
+        self._changed_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
         self._changed_dock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
         self._changed_dock.topLevelChanged.connect(self._on_changed_dock_float)
         self.addDockWidget(Qt.TopDockWidgetArea, self._changed_dock)
