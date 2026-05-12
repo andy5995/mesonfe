@@ -29,6 +29,7 @@ _version_py = configure_file(
     configuration: {
         'VERSION': meson.project_version(),
         'PKGDATADIR': get_option('prefix') / _pkgdatadir,
+        'URL': 'https://github.com/andy5995/mesonfe',
     },
 )
 py.install_sources(

@@ -20,10 +20,11 @@ from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon, QDesktopSer
 from platformdirs import user_config_dir
 
 try:
-    from mesonfe._version import VERSION, PKGDATADIR as _PKGDATADIR
+    from mesonfe._version import VERSION, PKGDATADIR as _PKGDATADIR, URL as _URL
 except ImportError:
     VERSION = 'unknown'
     _PKGDATADIR = None
+    _URL = 'https://github.com/andy5995/mesonfe'
 
 
 def _is_build_dir(path: Path) -> bool:
@@ -1425,6 +1426,7 @@ class MainWindow(QMainWindow):
             'About mesonfe',
             f'<b>mesonfe</b> {"v" + VERSION if VERSION != "unknown" else "(development)"}<br>'
             'A PyQt5 GUI frontend for Meson build options.<br><br>'
+            f'<a href="{_URL}">{_URL}</a><br><br>'
             'License: MIT',
         )
 
