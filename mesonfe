@@ -203,6 +203,7 @@ _DEFAULT_SHORTCUTS = {
     'help_keybindings':  ('Configure Keybindings…',  'Ctrl+,'),
     'tools_open_terminal': ('Open Terminal…',         'Ctrl+Alt+T'),
     'view_toolbar':        ('Show Toolbar',           ''),
+    'panels_build_options': ('Build Options Panel',    ''),
     'panels_compile':      ('Compile Panel',          ''),
     'panels_install':      ('Install Panel',          ''),
     'panels_dist':         ('Dist Panel',             ''),
@@ -1047,6 +1048,11 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, self._test_dock)
         self._test_dock.hide()
 
+        self._build_options_dock = PanelDock('Build Options', self)
+        self._build_options_dock.setObjectName('build_options_dock')
+        self._build_options_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._build_options_dock)
+
         self.tabifyDockWidget(self._compile_dock, self._install_dock)
         self.tabifyDockWidget(self._install_dock, self._dist_dock)
         self.tabifyDockWidget(self._dist_dock, self._subprojects_dock)
@@ -1060,11 +1066,13 @@ class MainWindow(QMainWindow):
             '  border-right: 4px solid #2a5a8a;'
             '}'
         )
-        for _dock in (self._compile_dock, self._install_dock, self._dist_dock,
-                      self._subprojects_dock, self._test_dock):
+        for _dock in (self._build_options_dock, self._compile_dock, self._install_dock,
+                      self._dist_dock, self._subprojects_dock, self._test_dock):
             _dock.setStyleSheet(_panel_style)
 
         panels_menu = self.menuBar().addMenu('Panels')
+        panels_menu.addAction(self._build_options_dock.toggleViewAction())
+        panels_menu.addSeparator()
         panels_menu.addAction(self._compile_dock.toggleViewAction())
         panels_menu.addAction(self._install_dock.toggleViewAction())
         panels_menu.addAction(self._dist_dock.toggleViewAction())
@@ -1091,6 +1099,7 @@ class MainWindow(QMainWindow):
             'help_keybindings':  ('Configure Keybindings…',           self._keybindings_action),
             'tools_open_terminal': ('Open Terminal…',                 self._open_terminal_action),
             'view_toolbar':        ('Show Toolbar',                   self._toolbar_view_action),
+            'panels_build_options': ('Build Options Panel',            self._build_options_dock.toggleViewAction()),
             'panels_compile':      ('Compile Panel',                  self._compile_dock.toggleViewAction()),
             'panels_install':      ('Install Panel',                  self._install_dock.toggleViewAction()),
             'panels_dist':         ('Dist Panel',                     self._dist_dock.toggleViewAction()),
@@ -1102,6 +1111,10 @@ class MainWindow(QMainWindow):
         self._status_label = QLabel()
         self.statusBar().addPermanentWidget(self._status_label)
 
+        _empty = QWidget()
+        _empty.setMaximumSize(0, 0)
+        self.setCentralWidget(_empty)
+
         if builddir is not None:
             self._rebuild()
         else:
@@ -1109,7 +1122,7 @@ class MainWindow(QMainWindow):
             lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory…')
             lbl.setAlignment(Qt.AlignCenter)
             QVBoxLayout(placeholder).addWidget(lbl)
-            self.setCentralWidget(placeholder)
+            self._build_options_dock.setWidget(placeholder)
             self._status_label.setText('No build directory')
 
         self._restore_window_state()
@@ -1140,7 +1153,7 @@ class MainWindow(QMainWindow):
         defaults = parse_defaults(source_dir) if source_dir else {}
 
         root_w = QWidget()
-        self.setCentralWidget(root_w)
+        self._build_options_dock.setWidget(root_w)
         layout = QVBoxLayout(root_w)
         layout.setSpacing(6)
 
