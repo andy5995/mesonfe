@@ -45,6 +45,7 @@ install_data(
 install_data(
     'data/@0@.svg'.format(meson.project_name()),
     'data/terminal.svg',
+    'data/tree.svg',
     install_dir: _pkgdatadir,
 )
 

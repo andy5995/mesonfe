@@ -14,9 +14,10 @@ from PyQt5.QtWidgets import (
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
     QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog, QSpinBox,
     QKeySequenceEdit, QAction, QSplitter, QMenu, QAbstractButton,
+    QTreeWidget, QTreeWidgetItem, QPlainTextEdit,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl, QEvent, QTimer
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QCursor
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QCursor, QSyntaxHighlighter
 from platformdirs import user_config_dir
 
 try:
@@ -206,6 +207,7 @@ _DEFAULT_SHORTCUTS = {
     'tools_open_terminal': ('Open Terminal…',         'Ctrl+Alt+T'),
     'view_toolbar':        ('Show Toolbar',           ''),
     'panels_build_options': ('Build Options Panel',    ''),
+    'panels_tree':         ('Build Files Panel',      ''),
     'panels_compile':      ('Compile Panel',          ''),
     'panels_install':      ('Install Panel',          ''),
     'panels_dist':         ('Dist Panel',             ''),
@@ -975,6 +977,206 @@ class ValueWidget(QWidget):
         return str(v)
 
 
+class MesonHighlighter(QSyntaxHighlighter):
+    _KEYWORDS = frozenset((
+        'project', 'executable', 'library', 'shared_library', 'static_library',
+        'both_libraries', 'shared_module', 'dependency', 'declare_dependency',
+        'find_program', 'import', 'subdir', 'subproject', 'files', 'include_directories',
+        'install_data', 'install_headers', 'install_man', 'install_subdir',
+        'configure_file', 'custom_target', 'run_command', 'run_target',
+        'test', 'benchmark', 'add_test_setup', 'add_project_arguments',
+        'add_global_arguments', 'add_project_link_arguments',
+        'get_option', 'option', 'message', 'warning', 'error', 'assert',
+        'environment', 'generator', 'join_paths', 'build_target',
+        'if', 'elif', 'else', 'endif', 'foreach', 'endforeach',
+        'and', 'or', 'not', 'in', 'continue', 'break',
+        'true', 'false',
+    ))
+
+    def __init__(self, document):
+        super().__init__(document)
+
+        def fmt(color, bold=False):
+            f = QTextCharFormat()
+            f.setForeground(QColor(color))
+            if bold:
+                f.setFontWeight(QFont.Bold)
+            return f
+
+        self._fmt_kw      = fmt('#569cd6', bold=True)
+        self._fmt_str     = fmt('#ce9178')
+        self._fmt_comment = fmt('#6a9955')
+        self._fmt_num     = fmt('#b5cea8')
+        self._fmt_func    = fmt('#dcdcaa')
+        self._fmt_interp  = fmt('#4ec9b0')
+
+        self._re_token = re.compile(
+            r"'''|'|#|@\w+@|\b\d+(?:\.\d+)?\b|[A-Za-z_]\w*"
+        )
+        self._re_num   = re.compile(r'^\d')
+        self._re_ident = re.compile(r'^[A-Za-z_]')
+
+    def highlightBlock(self, text):
+        in_triple = self.previousBlockState() == 1
+        self.setCurrentBlockState(0)
+        i = 0
+        n = len(text)
+
+        if in_triple:
+            end = text.find("'''", i)
+            if end == -1:
+                self.setFormat(0, n, self._fmt_str)
+                self.setCurrentBlockState(1)
+                return
+            self.setFormat(0, end + 3, self._fmt_str)
+            i = end + 3
+
+        while i < n:
+            m = self._re_token.search(text, i)
+            if not m:
+                break
+            s, tok = m.start(), m.group()
+
+            if tok == "'''":
+                end = text.find("'''", s + 3)
+                if end == -1:
+                    self.setFormat(s, n - s, self._fmt_str)
+                    self.setCurrentBlockState(1)
+                    return
+                self.setFormat(s, end + 3 - s, self._fmt_str)
+                i = end + 3
+
+            elif tok == "'":
+                j = s + 1
+                while j < n:
+                    if text[j] == '\\':
+                        j += 2
+                    elif text[j] == "'":
+                        j += 1
+                        break
+                    else:
+                        j += 1
+                self.setFormat(s, j - s, self._fmt_str)
+                i = j
+
+            elif tok == '#':
+                self.setFormat(s, n - s, self._fmt_comment)
+                return
+
+            elif tok.startswith('@'):
+                self.setFormat(s, len(tok), self._fmt_interp)
+                i = s + len(tok)
+
+            elif self._re_num.match(tok):
+                self.setFormat(s, len(tok), self._fmt_num)
+                i = s + len(tok)
+
+            else:
+                # identifier — keyword, function call, or plain
+                i = s + len(tok)
+                if tok in self._KEYWORDS:
+                    self.setFormat(s, len(tok), self._fmt_kw)
+                elif i < n and text[i:].lstrip(' \t').startswith('('):
+                    self.setFormat(s, len(tok), self._fmt_func)
+                # else plain identifier, no colour
+
+
+class BuildFileViewer(QDialog):
+    def __init__(self, path, source_dir, parent=None):
+        p = Path(path)
+        try:
+            rel = p.relative_to(source_dir) if source_dir else p
+        except ValueError:
+            rel = p
+        super().__init__(parent)
+        self.setWindowTitle(str(rel))
+        self.resize(800, 600)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+
+        self._editor = QPlainTextEdit()
+        self._editor.setReadOnly(True)
+        font = QFont('Monospace')
+        font.setStyleHint(QFont.TypeWriter)
+        self._editor.setFont(font)
+        self._editor.setLineWrapMode(QPlainTextEdit.NoWrap)
+
+        try:
+            self._editor.setPlainText(p.read_text(errors='replace'))
+        except OSError as e:
+            self._editor.setPlainText(f'(error reading file: {e})')
+
+        self._highlighter = MesonHighlighter(self._editor.document())
+
+        layout.addWidget(self._editor)
+
+        btn = QPushButton('Close')
+        btn.clicked.connect(self.accept)
+        layout.addWidget(btn)
+
+
+class BuildFilesPanel(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._source_path = None
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self._tree = QTreeWidget()
+        self._tree.setHeaderLabel('Build Files')
+        self._tree.itemDoubleClicked.connect(self._view_file)
+        layout.addWidget(self._tree)
+
+    def set_builddir(self, builddir):
+        self._tree.clear()
+        build_files = []
+        try:
+            data = (builddir / 'meson-info' / 'intro-buildsystem_files.json').read_text()
+            build_files = json.loads(data)
+        except (OSError, json.JSONDecodeError):
+            pass
+        info = {}
+        try:
+            data = (builddir / 'meson-info' / 'meson-info.json').read_text()
+            info = json.loads(data)
+        except (OSError, json.JSONDecodeError):
+            pass
+        source_dir = info.get('directories', {}).get('source', '')
+        self._source_path = Path(source_dir) if source_dir else None
+
+        dirs: dict = {}
+        for f in build_files:
+            p = Path(f)
+            if self._source_path:
+                try:
+                    rel = p.relative_to(self._source_path)
+                except ValueError:
+                    rel = p
+            else:
+                rel = p
+            parts = rel.parts
+            node = dirs
+            for part in parts[:-1]:
+                node = node.setdefault(part, {})
+            node.setdefault('__files__', []).append((parts[-1] if parts else str(p), str(p)))
+
+        def _populate(parent_item, subtree):
+            for name, full_path in sorted(subtree.get('__files__', [])):
+                item = QTreeWidgetItem(parent_item, [name])
+                item.setData(0, Qt.UserRole, full_path)
+            for key in sorted(k for k in subtree if k != '__files__'):
+                dir_item = QTreeWidgetItem(parent_item, [key])
+                _populate(dir_item, subtree[key])
+
+        _populate(self._tree.invisibleRootItem(), dirs)
+        self._tree.expandAll()
+
+    def _view_file(self, item, _column):
+        path = item.data(0, Qt.UserRole)
+        if path:
+            dlg = BuildFileViewer(path, self._source_path, self)
+            dlg.exec_()
+
 class MainWindow(QMainWindow):
     def __init__(self, builddir):
         super().__init__()
@@ -1037,14 +1239,34 @@ class MainWindow(QMainWindow):
         self._open_terminal_action.triggered.connect(self._open_terminal)
         self._open_terminal_action.setEnabled(False)
 
+        self._tree_action = QAction('Build Files', self)
+        self._tree_action.setToolTip('Show build files tree')
+        self._tree_action.setCheckable(True)
+        _tree_icon = QIcon()
+        for _p in [
+            Path(__file__).parent / 'data' / 'tree.svg',
+            Path(_PKGDATADIR) / 'tree.svg' if _PKGDATADIR else None,
+        ]:
+            if _p and _p.exists():
+                _tree_icon = QIcon(str(_p))
+                break
+        if _tree_icon.isNull():
+            _tree_icon = QIcon.fromTheme('view-list-tree')
+        if not _tree_icon.isNull():
+            self._tree_action.setIcon(_tree_icon)
+        self._tree_action.triggered.connect(self._toggle_tree_dock)
+
         tools_menu = self.menuBar().addMenu('Tools')
         tools_menu.addAction(self._open_terminal_action)
+        tools_menu.addAction(self._tree_action)
 
         view_menu = self.menuBar().addMenu('View')
+
         self._toolbar = self.addToolBar('Main Toolbar')
         self._toolbar.setObjectName('main_toolbar')
         self._toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self._toolbar.addAction(self._open_terminal_action)
+        self._toolbar.addAction(self._tree_action)
         self._toolbar_view_action = self._toolbar.toggleViewAction()
         self._toolbar_view_action.setText('Show Toolbar')
         view_menu.addAction(self._toolbar_view_action)
@@ -1102,6 +1324,16 @@ class MainWindow(QMainWindow):
         self._build_options_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
         self.addDockWidget(Qt.LeftDockWidgetArea, self._build_options_dock)
 
+        self._tree_panel = BuildFilesPanel()
+        self._tree_dock = PanelDock('Build Files', self)
+        self._tree_dock.setObjectName('tree_dock')
+        self._tree_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+        self._tree_dock.setWidget(self._tree_panel)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._tree_dock)
+        self._tree_dock.hide()
+        self.tabifyDockWidget(self._build_options_dock, self._tree_dock)
+        self._tree_dock.visibilityChanged.connect(self._tree_action.setChecked)
+
         self.tabifyDockWidget(self._compile_dock, self._install_dock)
         self.tabifyDockWidget(self._install_dock, self._dist_dock)
         self.tabifyDockWidget(self._dist_dock, self._subprojects_dock)
@@ -1115,16 +1347,18 @@ class MainWindow(QMainWindow):
             '  border-right: 4px solid #2a5a8a;'
             '}'
         )
-        for _dock in (self._build_options_dock, self._compile_dock, self._install_dock,
-                      self._dist_dock, self._subprojects_dock, self._test_dock):
+        for _dock in (self._build_options_dock, self._tree_dock, self._compile_dock,
+                      self._install_dock, self._dist_dock, self._subprojects_dock, self._test_dock):
             _dock.setStyleSheet(_panel_style)
 
-        for _dock in (self._changed_dock, self._build_options_dock, self._compile_dock,
-                      self._install_dock, self._dist_dock, self._subprojects_dock, self._test_dock):
+        for _dock in (self._changed_dock, self._build_options_dock, self._tree_dock,
+                      self._compile_dock, self._install_dock, self._dist_dock,
+                      self._subprojects_dock, self._test_dock):
             _set_dock_tooltips(_dock)
 
         panels_menu = self.menuBar().addMenu('Panels')
         panels_menu.addAction(self._build_options_dock.toggleViewAction())
+        panels_menu.addAction(self._tree_dock.toggleViewAction())
         panels_menu.addSeparator()
         panels_menu.addAction(self._compile_dock.toggleViewAction())
         panels_menu.addAction(self._install_dock.toggleViewAction())
@@ -1158,6 +1392,7 @@ class MainWindow(QMainWindow):
             'tools_open_terminal': ('Open Terminal…',                 self._open_terminal_action),
             'view_toolbar':        ('Show Toolbar',                   self._toolbar_view_action),
             'panels_build_options': ('Build Options Panel',            self._build_options_dock.toggleViewAction()),
+            'panels_tree':         ('Build Files Panel',              self._tree_dock.toggleViewAction()),
             'panels_compile':      ('Compile Panel',                  self._compile_dock.toggleViewAction()),
             'panels_install':      ('Install Panel',                  self._install_dock.toggleViewAction()),
             'panels_dist':         ('Dist Panel',                     self._dist_dock.toggleViewAction()),
@@ -1280,6 +1515,7 @@ class MainWindow(QMainWindow):
         self._subprojects_panel.set_source_dir(source_dir)
         self._test_panel.set_builddir(self._builddir)
         self._test_panel.set_test_items(self._test_items)
+        self._tree_panel.set_builddir(self._builddir)
 
         # All options
         grp = QGroupBox('Build Options')
@@ -1467,6 +1703,13 @@ class MainWindow(QMainWindow):
             f'<a href="{_URL}">{_URL}</a><br><br>'
             'License: MIT',
         )
+
+    def _toggle_tree_dock(self, checked):
+        if checked:
+            self._tree_dock.show()
+            self._tree_dock.raise_()
+        else:
+            self._tree_dock.hide()
 
     def _open_terminal(self):
         if not self._builddir:
