@@ -21,10 +21,15 @@ py = import('python').find_installation(
     modules: ['PyQt5', 'platformdirs'],
 )
 
+_pkgdatadir = get_option('datadir') / meson.project_name()
+
 _version_py = configure_file(
     input: 'src/mesonfe/_version.py.in',
     output: '_version.py',
-    configuration: {'VERSION': meson.project_version()},
+    configuration: {
+        'VERSION': meson.project_version(),
+        'PKGDATADIR': get_option('prefix') / _pkgdatadir,
+    },
 )
 py.install_sources(
     ['src/mesonfe/__init__.py', _version_py],
@@ -34,6 +39,12 @@ py.install_sources(
 install_data(
     'data/@0@.svg'.format(meson.project_name()),
     install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'scalable' / 'apps',
+)
+
+install_data(
+    'data/@0@.svg'.format(meson.project_name()),
+    'data/terminal.svg',
+    install_dir: _pkgdatadir,
 )
 
 configure_file(
@@ -46,6 +57,7 @@ configure_file(
 
 gnome = import('gnome')
 gnome.post_install(
+    gtk_update_icon_cache: true,
     update_desktop_database: true,
 )
 

@@ -20,9 +20,10 @@ from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon, QDesktopSer
 from platformdirs import user_config_dir
 
 try:
-    from mesonfe._version import VERSION
+    from mesonfe._version import VERSION, PKGDATADIR as _PKGDATADIR
 except ImportError:
     VERSION = 'unknown'
+    _PKGDATADIR = None
 
 
 def _is_build_dir(path: Path) -> bool:
@@ -974,9 +975,13 @@ class MainWindow(QMainWindow):
         self._open_terminal_action.setToolTip('Open the build directory in a terminal')
         _term_icon = QIcon.fromTheme('utilities-terminal')
         if _term_icon.isNull():
-            _term_icon_path = Path(__file__).parent / 'data' / 'terminal.svg'
-            if _term_icon_path.exists():
-                _term_icon = QIcon(str(_term_icon_path))
+            for _p in [
+                Path(__file__).parent / 'data' / 'terminal.svg',
+                Path(_PKGDATADIR) / 'terminal.svg' if _PKGDATADIR else None,
+            ]:
+                if _p and _p.exists():
+                    _term_icon = QIcon(str(_p))
+                    break
         if not _term_icon.isNull():
             self._open_terminal_action.setIcon(_term_icon)
         self._open_terminal_action.triggered.connect(self._open_terminal)
@@ -1518,9 +1523,13 @@ def main():
     _apply_dark_theme(app)
     icon = QIcon.fromTheme('mesonfe')
     if icon.isNull():
-        _local = Path(__file__).parent / 'data' / 'mesonfe.svg'
-        if _local.exists():
-            icon = QIcon(str(_local))
+        for _p in [
+            Path(__file__).parent / 'data' / 'mesonfe.svg',
+            Path(_PKGDATADIR) / 'mesonfe.svg' if _PKGDATADIR else None,
+        ]:
+            if _p and _p.exists():
+                icon = QIcon(str(_p))
+                break
     if not icon.isNull():
         app.setWindowIcon(icon)
     builddir = find_builddir()
