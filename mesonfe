@@ -626,40 +626,46 @@ class SubprojectsPanel(QWidget):
         self._source_dir = None
         layout = QVBoxLayout(self)
 
-        form = QHBoxLayout()
+        opts = QHBoxLayout()
         self._reset = QCheckBox('Reset')
         self._reset.setToolTip('Hard reset to wrap revision (git only)')
         self._allow_insecure = QCheckBox('Allow insecure')
-        for w in (self._reset, self._allow_insecure):
-            form.addWidget(w)
-        form.addSpacing(12)
-        form.addWidget(QLabel('Types:'))
-        self._types = QLineEdit()
-        self._types.setPlaceholderText('all')
-        self._types.setToolTip('Comma-separated: file, git, hg, svn, redirect')
-        form.addWidget(self._types)
-        form.addSpacing(12)
-        form.addWidget(QLabel('Jobs:'))
+        opts.addWidget(self._reset)
+        opts.addWidget(self._allow_insecure)
+        opts.addSpacing(12)
+        opts.addWidget(QLabel('Jobs:'))
         self._jobs = QSpinBox()
         self._jobs.setRange(0, 256)
         self._jobs.setValue(0)
         self._jobs.setSpecialValueText('default')
-        form.addWidget(self._jobs)
-        form.addSpacing(12)
-        form.addWidget(QLabel('Pattern:'))
-        self._pattern = QLineEdit()
-        self._pattern.setPlaceholderText('(all)')
-        self._pattern.setToolTip('Space-separated subproject name patterns')
-        form.addWidget(self._pattern)
-        form.addStretch()
-        layout.addLayout(form)
+        opts.addWidget(self._jobs)
+        opts.addStretch()
+        layout.addLayout(opts)
+
+        sel_bar = QHBoxLayout()
+        sel_bar.addWidget(QLabel('Subprojects:'))
+        sel_bar.addStretch()
+        self._all_btn = QPushButton('All')
+        self._none_btn = QPushButton('None')
+        for btn in (self._all_btn, self._none_btn):
+            btn.setFixedWidth(50)
+            btn.setEnabled(False)
+        self._all_btn.clicked.connect(lambda: self._set_all(True))
+        self._none_btn.clicked.connect(lambda: self._set_all(False))
+        sel_bar.addWidget(self._all_btn)
+        sel_bar.addWidget(self._none_btn)
+        layout.addLayout(sel_bar)
+
+        self._sp_list = QListWidget()
+        self._sp_list.setSelectionMode(QListWidget.NoSelection)
+        layout.addWidget(self._sp_list)
 
         self._out = QTextEdit()
         self._out.setReadOnly(True)
         self._out.setFont(QFont('monospace', 10))
         layout.addWidget(self._out)
 
-        self._run_btn = QPushButton('Run')
+        self._run_btn = QPushButton('Update')
         self._run_btn.setEnabled(False)
         self._run_btn.clicked.connect(self._run)
         layout.addWidget(self._run_btn, alignment=Qt.AlignRight)
@@ -672,9 +678,26 @@ class SubprojectsPanel(QWidget):
         self._proc.finished.connect(self._on_finished)
         self._line_buf = ['']
 
+    def _set_all(self, checked):
+        state = Qt.Checked if checked else Qt.Unchecked
+        for i in range(self._sp_list.count()):
+            self._sp_list.item(i).setCheckState(state)
+
     def set_source_dir(self, source_dir):
         self._source_dir = source_dir
+        self._sp_list.clear()
+        has_wraps = False
+        if source_dir:
+            sp_dir = source_dir / 'subprojects'
+            if sp_dir.is_dir():
+                for wrap in sorted(sp_dir.glob('*.wrap')):
+                    item = QListWidgetItem(wrap.stem)
+                    item.setCheckState(Qt.Checked)
+                    self._sp_list.addItem(item)
+                has_wraps = self._sp_list.count() > 0
         self._run_btn.setEnabled(source_dir is not None)
+        self._all_btn.setEnabled(has_wraps)
+        self._none_btn.setEnabled(has_wraps)
 
     def _run(self):
         self._out.clear()
@@ -685,14 +708,13 @@ class SubprojectsPanel(QWidget):
             args.append('--reset')
         if self._allow_insecure.isChecked():
             args.append('--allow-insecure')
-        types = self._types.text().strip()
-        if types:
-            args += ['--types', types]
         if self._jobs.value() > 0:
             args += ['-j', str(self._jobs.value())]
-        pattern = self._pattern.text().strip()
-        if pattern:
-            args.extend(pattern.split())
+        total = self._sp_list.count()
+        selected = [self._sp_list.item(i).text() for i in range(total)
+                    if self._sp_list.item(i).checkState() == Qt.Checked]
+        if 0 < len(selected) < total:
+            args.extend(selected)
         self._proc.start('meson', args)
 
     def _append(self, text: str):
