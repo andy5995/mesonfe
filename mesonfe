@@ -1515,6 +1515,14 @@ def _apply_dark_theme(app):
         QListView::indicator:unchecked:hover {
             border-color: #aaaaaa;
         }
+        QMainWindow::separator {
+            background: #555555;
+            width: 3px;
+            height: 3px;
+        }
+        QMainWindow::separator:hover {
+            background: #8ec6f0;
+        }
         QTabBar::tab {
             background: #2a2a2a;
             color: #aaaaaa;
