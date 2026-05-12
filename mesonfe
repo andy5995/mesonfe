@@ -193,6 +193,7 @@ _STATE_PATH     = Path(user_config_dir('mesonfe')) / 'windowstate.bin'
 
 _DEFAULT_SHORTCUTS = {
     'file_open':         ('Open Build Directory…',   'Ctrl+O'),
+    'file_setup_rc':     ('Setup from .mesonferc…',  ''),
     'file_quit':         ('Quit',                    'Ctrl+Q'),
     'build_save':        ('Save options to .mesonferc', 'Ctrl+S'),
     'build_setup':       ('Setup from .mesonferc',   'Ctrl+Shift+S'),
@@ -1215,6 +1216,9 @@ class MainWindow(QMainWindow):
         self._open_action.triggered.connect(self._open_build_dir)
         self._recent_menu = file_menu.addMenu('Recently Opened')
         file_menu.addSeparator()
+        self._setup_rc_file_action = file_menu.addAction('Setup from .mesonferc…')
+        self._setup_rc_file_action.triggered.connect(self._setup_from_mesonferc_file)
+        file_menu.addSeparator()
         self._quit_action = file_menu.addAction('Quit')
         self._quit_action.triggered.connect(self.close)
         self._refresh_recent_menu()
@@ -1400,6 +1404,7 @@ class MainWindow(QMainWindow):
 
         self._action_map = {
             'file_open':         ('Open Build Directory…', self._open_action),
+            'file_setup_rc':     ('Setup from .mesonferc…', self._setup_rc_file_action),
             'file_quit':         ('Quit',                  self._quit_action),
             'build_save':        ('Save options to .mesonferc', self._save_rc_action),
             'build_setup':       ('Setup from .mesonferc',  self._setup_rc_action),
@@ -1625,6 +1630,49 @@ class MainWindow(QMainWindow):
         save_mesonferc_options(rc_path, options)
         self._setup_rc_action.setEnabled(True)
         QMessageBox.information(self, 'Saved', f'Saved {len(options)} option(s) to {rc_path.name}.')
+
+    def _setup_from_mesonferc_file(self):
+        source_dir = QFileDialog.getExistingDirectory(
+            self, 'Select project directory containing .mesonferc'
+        )
+        if not source_dir:
+            return
+        source_dir = Path(source_dir)
+        rc_path = source_dir / '.mesonferc'
+        if not rc_path.exists():
+            QMessageBox.warning(self, 'Not found',
+                                f'No .mesonferc found in {source_dir}')
+            return
+
+        builddir_name = None
+        for line in rc_path.read_text().splitlines():
+            line = line.strip()
+            if line.startswith('#') or '=' not in line:
+                continue
+            key, _, val = line.partition('=')
+            if key.strip() == 'default_builddir':
+                builddir_name = val.strip().strip('"')
+                break
+
+        if builddir_name:
+            builddir = source_dir / builddir_name
+        else:
+            builddir_str = QFileDialog.getExistingDirectory(
+                self, 'Select build directory', str(source_dir)
+            )
+            if not builddir_str:
+                return
+            builddir = Path(builddir_str)
+
+        rc_options = load_mesonferc_options(rc_path)
+        d_args = [f'-D{k}={v}' for k, v in rc_options.items()]
+        has_build = (builddir / 'meson-info').exists()
+        args = (['setup', str(source_dir), str(builddir)] +
+                (['--reconfigure'] + d_args if has_build else d_args))
+        dlg = MesonSetupDialog(self, args)
+        dlg.exec_()
+        if _is_build_dir(builddir):
+            self._load_builddir(builddir)
 
     def _setup_from_mesonferc(self):
         rc_path = self._source_dir / '.mesonferc'
