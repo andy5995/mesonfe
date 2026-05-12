@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
     QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog, QSpinBox,
-    QKeySequenceEdit, QAction,
+    QKeySequenceEdit, QAction, QSplitter,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon, QDesktopServices, QKeySequence
@@ -184,7 +184,9 @@ def save_mesonferc_options(rc_path: Path, options: dict):
 _RECENT_PATH = Path(user_config_dir('mesonfe')) / 'recent.json'
 _RECENT_MAX = 10
 
-_SHORTCUT_PATH = Path(user_config_dir('mesonfe')) / 'keybindings.json'
+_SHORTCUT_PATH  = Path(user_config_dir('mesonfe')) / 'keybindings.json'
+_GEOMETRY_PATH  = Path(user_config_dir('mesonfe')) / 'windowgeometry.bin'
+_STATE_PATH     = Path(user_config_dir('mesonfe')) / 'windowstate.bin'
 
 _DEFAULT_SHORTCUTS = {
     'file_open':         ('Open Build Directory…',   'Ctrl+O'),
@@ -200,6 +202,11 @@ _DEFAULT_SHORTCUTS = {
     'help_keybindings':  ('Configure Keybindings…',  'Ctrl+,'),
     'tools_open_terminal': ('Open Terminal…',         'Ctrl+Alt+T'),
     'view_toolbar':        ('Show Toolbar',           ''),
+    'panels_compile':      ('Compile Panel',          ''),
+    'panels_install':      ('Install Panel',          ''),
+    'panels_dist':         ('Dist Panel',             ''),
+    'panels_subprojects':  ('Subprojects Panel',      ''),
+    'panels_test':         ('Test Panel',             ''),
 }
 
 
@@ -322,11 +329,10 @@ class MesonSetupDialog(QDialog):
         super().closeEvent(event)
 
 
-class MesonCompileDialog(QDialog):
-    def __init__(self, parent: QWidget, builddir: Path):
+class CompilePanel(QWidget):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('meson compile')
-        self.resize(720, 520)
+        self._builddir = None
         layout = QVBoxLayout(self)
 
         form = QHBoxLayout()
@@ -347,6 +353,7 @@ class MesonCompileDialog(QDialog):
         self._target = QLineEdit()
         self._target.setPlaceholderText('(all)')
         form.addWidget(self._target)
+        form.addStretch()
         layout.addLayout(form)
 
         self._out = QTextEdit()
@@ -354,23 +361,21 @@ class MesonCompileDialog(QDialog):
         self._out.setFont(QFont('monospace', 10))
         layout.addWidget(self._out)
 
-        btns = QHBoxLayout()
         self._run_btn = QPushButton('Run')
+        self._run_btn.setEnabled(False)
         self._run_btn.clicked.connect(self._run)
-        self._close_btn = QPushButton('Close')
-        self._close_btn.clicked.connect(self.accept)
-        btns.addStretch()
-        btns.addWidget(self._run_btn)
-        btns.addWidget(self._close_btn)
-        layout.addLayout(btns)
+        layout.addWidget(self._run_btn, alignment=Qt.AlignRight)
 
-        self._builddir = builddir
         self._proc = QProcess(self)
         self._proc.setProcessChannelMode(QProcess.MergedChannels)
         self._proc.readyRead.connect(
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
+
+    def set_builddir(self, builddir):
+        self._builddir = builddir
+        self._run_btn.setEnabled(builddir is not None)
 
     def _run(self):
         self._out.clear()
@@ -401,19 +406,18 @@ class MesonCompileDialog(QDialog):
         super().closeEvent(event)
 
 
-class MesonInstallDialog(QDialog):
-    def __init__(self, parent: QWidget, builddir: Path):
+class InstallPanel(QWidget):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('meson install')
-        self.resize(720, 520)
+        self._builddir = None
         layout = QVBoxLayout(self)
 
         form = QHBoxLayout()
-        self._dry_run   = QCheckBox('Dry run')
+        self._dry_run    = QCheckBox('Dry run')
         self._no_rebuild = QCheckBox('No rebuild')
         self._only_changed = QCheckBox('Only changed')
-        self._strip     = QCheckBox('Strip')
-        self._quiet     = QCheckBox('Quiet')
+        self._strip      = QCheckBox('Strip')
+        self._quiet      = QCheckBox('Quiet')
         for w in (self._dry_run, self._no_rebuild, self._only_changed,
                   self._strip, self._quiet):
             form.addWidget(w)
@@ -430,23 +434,21 @@ class MesonInstallDialog(QDialog):
         self._out.setFont(QFont('monospace', 10))
         layout.addWidget(self._out)
 
-        btns = QHBoxLayout()
         self._run_btn = QPushButton('Run')
+        self._run_btn.setEnabled(False)
         self._run_btn.clicked.connect(self._run)
-        self._close_btn = QPushButton('Close')
-        self._close_btn.clicked.connect(self.accept)
-        btns.addStretch()
-        btns.addWidget(self._run_btn)
-        btns.addWidget(self._close_btn)
-        layout.addLayout(btns)
+        layout.addWidget(self._run_btn, alignment=Qt.AlignRight)
 
-        self._builddir = builddir
         self._proc = QProcess(self)
         self._proc.setProcessChannelMode(QProcess.MergedChannels)
         self._proc.readyRead.connect(
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
+
+    def set_builddir(self, builddir):
+        self._builddir = builddir
+        self._run_btn.setEnabled(builddir is not None)
 
     def _run(self):
         self._out.clear()
@@ -481,102 +483,10 @@ class MesonInstallDialog(QDialog):
         super().closeEvent(event)
 
 
-class MesonSubprojectsUpdateDialog(QDialog):
-    def __init__(self, parent: QWidget, source_dir: Path):
+class DistPanel(QWidget):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('meson subprojects update')
-        self.resize(720, 480)
-        layout = QVBoxLayout(self)
-
-        form = QHBoxLayout()
-        self._reset = QCheckBox('Reset')
-        self._reset.setToolTip('Hard reset to wrap revision (git only)')
-        self._allow_insecure = QCheckBox('Allow insecure')
-        for w in (self._reset, self._allow_insecure):
-            form.addWidget(w)
-        form.addSpacing(12)
-        form.addWidget(QLabel('Types:'))
-        self._types = QLineEdit()
-        self._types.setPlaceholderText('all')
-        self._types.setToolTip('Comma-separated: file, git, hg, svn, redirect')
-        form.addWidget(self._types)
-        form.addSpacing(12)
-        form.addWidget(QLabel('Jobs:'))
-        self._jobs = QSpinBox()
-        self._jobs.setRange(0, 256)
-        self._jobs.setValue(0)
-        self._jobs.setSpecialValueText('default')
-        form.addWidget(self._jobs)
-        form.addSpacing(12)
-        form.addWidget(QLabel('Pattern:'))
-        self._pattern = QLineEdit()
-        self._pattern.setPlaceholderText('(all)')
-        self._pattern.setToolTip('Space-separated subproject name patterns')
-        form.addWidget(self._pattern)
-        form.addStretch()
-        layout.addLayout(form)
-
-        self._out = QTextEdit()
-        self._out.setReadOnly(True)
-        self._out.setFont(QFont('monospace', 10))
-        layout.addWidget(self._out)
-
-        btns = QHBoxLayout()
-        self._run_btn = QPushButton('Run')
-        self._run_btn.clicked.connect(self._run)
-        self._close_btn = QPushButton('Close')
-        self._close_btn.clicked.connect(self.accept)
-        btns.addStretch()
-        btns.addWidget(self._run_btn)
-        btns.addWidget(self._close_btn)
-        layout.addLayout(btns)
-
-        self._source_dir = source_dir
-        self._proc = QProcess(self)
-        self._proc.setProcessChannelMode(QProcess.MergedChannels)
-        self._proc.readyRead.connect(
-            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
-        )
-        self._proc.finished.connect(self._on_finished)
-
-    def _run(self):
-        self._out.clear()
-        self._run_btn.setEnabled(False)
-        args = ['subprojects', 'update', '--sourcedir', str(self._source_dir)]
-        if self._reset.isChecked():
-            args.append('--reset')
-        if self._allow_insecure.isChecked():
-            args.append('--allow-insecure')
-        types = self._types.text().strip()
-        if types:
-            args += ['--types', types]
-        if self._jobs.value() > 0:
-            args += ['-j', str(self._jobs.value())]
-        pattern = self._pattern.text().strip()
-        if pattern:
-            args.extend(pattern.split())
-        self._proc.start('meson', args)
-
-    def _append(self, text: str):
-        self._out.moveCursor(QTextCursor.End)
-        self._out.insertPlainText(text)
-
-    def _on_finished(self, code: int, _status):
-        self._append(f'\n[exited {code}]')
-        self._run_btn.setEnabled(True)
-
-    def closeEvent(self, event):
-        if self._proc.state() != QProcess.NotRunning:
-            self._proc.kill()
-            self._proc.waitForFinished(2000)
-        super().closeEvent(event)
-
-
-class MesonDistDialog(QDialog):
-    def __init__(self, parent: QWidget, builddir: Path):
-        super().__init__(parent)
-        self.setWindowTitle('meson dist')
-        self.resize(720, 520)
+        self._builddir = None
         layout = QVBoxLayout(self)
 
         form = QHBoxLayout()
@@ -611,22 +521,23 @@ class MesonDistDialog(QDialog):
         self._show_btn.setEnabled(False)
         self._show_btn.clicked.connect(self._show_in_folder)
         self._run_btn = QPushButton('Run')
+        self._run_btn.setEnabled(False)
         self._run_btn.clicked.connect(self._run)
-        self._close_btn = QPushButton('Close')
-        self._close_btn.clicked.connect(self.accept)
         btns.addWidget(self._show_btn)
         btns.addStretch()
         btns.addWidget(self._run_btn)
-        btns.addWidget(self._close_btn)
         layout.addLayout(btns)
 
-        self._builddir = builddir
         self._proc = QProcess(self)
         self._proc.setProcessChannelMode(QProcess.MergedChannels)
         self._proc.readyRead.connect(
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
+
+    def set_builddir(self, builddir):
+        self._builddir = builddir
+        self._run_btn.setEnabled(builddir is not None)
 
     def _run(self):
         self._out.clear()
@@ -667,23 +578,49 @@ class MesonDistDialog(QDialog):
         super().closeEvent(event)
 
 
-class TestOutputDialog(QDialog):
-    def __init__(self, parent: QWidget, name: str, builddir: Path):
+class SubprojectsPanel(QWidget):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f'Test setup: {name}')
-        self.resize(720, 480)
-
+        self._source_dir = None
         layout = QVBoxLayout(self)
+
+        form = QHBoxLayout()
+        self._reset = QCheckBox('Reset')
+        self._reset.setToolTip('Hard reset to wrap revision (git only)')
+        self._allow_insecure = QCheckBox('Allow insecure')
+        for w in (self._reset, self._allow_insecure):
+            form.addWidget(w)
+        form.addSpacing(12)
+        form.addWidget(QLabel('Types:'))
+        self._types = QLineEdit()
+        self._types.setPlaceholderText('all')
+        self._types.setToolTip('Comma-separated: file, git, hg, svn, redirect')
+        form.addWidget(self._types)
+        form.addSpacing(12)
+        form.addWidget(QLabel('Jobs:'))
+        self._jobs = QSpinBox()
+        self._jobs.setRange(0, 256)
+        self._jobs.setValue(0)
+        self._jobs.setSpecialValueText('default')
+        form.addWidget(self._jobs)
+        form.addSpacing(12)
+        form.addWidget(QLabel('Pattern:'))
+        self._pattern = QLineEdit()
+        self._pattern.setPlaceholderText('(all)')
+        self._pattern.setToolTip('Space-separated subproject name patterns')
+        form.addWidget(self._pattern)
+        form.addStretch()
+        layout.addLayout(form)
 
         self._out = QTextEdit()
         self._out.setReadOnly(True)
         self._out.setFont(QFont('monospace', 10))
         layout.addWidget(self._out)
 
-        self._btn = QPushButton('Close')
-        self._btn.setEnabled(False)
-        self._btn.clicked.connect(self.accept)
-        layout.addWidget(self._btn)
+        self._run_btn = QPushButton('Run')
+        self._run_btn.setEnabled(False)
+        self._run_btn.clicked.connect(self._run)
+        layout.addWidget(self._run_btn, alignment=Qt.AlignRight)
 
         self._proc = QProcess(self)
         self._proc.setProcessChannelMode(QProcess.MergedChannels)
@@ -691,7 +628,28 @@ class TestOutputDialog(QDialog):
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
-        self._proc.start('meson', ['test', '--setup', name, '-C', str(builddir)])
+
+    def set_source_dir(self, source_dir):
+        self._source_dir = source_dir
+        self._run_btn.setEnabled(source_dir is not None)
+
+    def _run(self):
+        self._out.clear()
+        self._run_btn.setEnabled(False)
+        args = ['subprojects', 'update', '--sourcedir', str(self._source_dir)]
+        if self._reset.isChecked():
+            args.append('--reset')
+        if self._allow_insecure.isChecked():
+            args.append('--allow-insecure')
+        types = self._types.text().strip()
+        if types:
+            args += ['--types', types]
+        if self._jobs.value() > 0:
+            args += ['-j', str(self._jobs.value())]
+        pattern = self._pattern.text().strip()
+        if pattern:
+            args.extend(pattern.split())
+        self._proc.start('meson', args)
 
     def _append(self, text: str):
         self._out.moveCursor(QTextCursor.End)
@@ -699,7 +657,7 @@ class TestOutputDialog(QDialog):
 
     def _on_finished(self, code: int, _status):
         self._append(f'\n[exited {code}]')
-        self._btn.setEnabled(True)
+        self._run_btn.setEnabled(True)
 
     def closeEvent(self, event):
         if self._proc.state() != QProcess.NotRunning:
@@ -708,37 +666,63 @@ class TestOutputDialog(QDialog):
         super().closeEvent(event)
 
 
-class TestRunSelectDialog(QDialog):
-    def __init__(self, parent: QWidget, items: list):
+class TestPanel(QWidget):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('Tests')
-        self.resize(360, 320)
+        self._builddir = None
+        self._runs = []
+        self._run_idx = 0
+        self._changing = False
         layout = QVBoxLayout(self)
 
-        self._changing = False
+        splitter = QSplitter(Qt.Vertical)
+
+        top = QWidget()
+        top_layout = QVBoxLayout(top)
+        top_layout.setContentsMargins(0, 0, 0, 0)
         self._list = QListWidget()
         self._list.setSelectionMode(QListWidget.NoSelection)
+        self._list.itemChanged.connect(self._on_item_changed)
+        self._list.itemClicked.connect(self._toggle_item)
+        top_layout.addWidget(self._list)
+        opts = QHBoxLayout()
+        self._verbose = QCheckBox('Verbose')
+        opts.addWidget(self._verbose)
+        self._run_btn = QPushButton('Run Selected')
+        self._run_btn.setEnabled(False)
+        self._run_btn.clicked.connect(self._run)
+        opts.addStretch()
+        opts.addWidget(self._run_btn)
+        top_layout.addLayout(opts)
+        splitter.addWidget(top)
+
+        self._out = QTextEdit()
+        self._out.setReadOnly(True)
+        self._out.setFont(QFont('monospace', 10))
+        splitter.addWidget(self._out)
+
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 2)
+        layout.addWidget(splitter)
+
+        self._proc = QProcess(self)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyRead.connect(
+            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
+        )
+        self._proc.finished.connect(self._on_finished)
+
+    def set_builddir(self, builddir):
+        self._builddir = builddir
+
+    def set_test_items(self, items):
+        self._list.clear()
         for i, (label, args) in enumerate(items):
             item = QListWidgetItem(label)
             item.setCheckState(Qt.Checked if i == 0 else Qt.Unchecked)
             item.setData(Qt.UserRole, args)
             self._list.addItem(item)
-        self._list.itemChanged.connect(self._on_item_changed)
-        self._list.itemClicked.connect(self._toggle_item)
-        layout.addWidget(self._list)
-
-        self._verbose = QCheckBox('Verbose')
-        layout.addWidget(self._verbose)
-
-        btns = QHBoxLayout()
-        run_btn = QPushButton('Run Selected')
-        run_btn.clicked.connect(self.accept)
-        cancel_btn = QPushButton('Cancel')
-        cancel_btn.clicked.connect(self.reject)
-        btns.addStretch()
-        btns.addWidget(run_btn)
-        btns.addWidget(cancel_btn)
-        layout.addLayout(btns)
+        self._run_btn.setEnabled(bool(items) and self._builddir is not None)
 
     def _on_item_changed(self, changed_item):
         if self._changing:
@@ -755,46 +739,24 @@ class TestRunSelectDialog(QDialog):
     def _toggle_item(self, item):
         item.setCheckState(Qt.Unchecked if item.checkState() == Qt.Checked else Qt.Checked)
 
-    def selected(self):
+    def _run(self):
         runs = [
             (self._list.item(i).text(), self._list.item(i).data(Qt.UserRole))
             for i in range(self._list.count())
             if self._list.item(i).checkState() == Qt.Checked
         ]
-        return runs, self._verbose.isChecked()
-
-
-class MultiTestOutputDialog(QDialog):
-    def __init__(self, parent: QWidget, runs: list, builddir: Path):
-        super().__init__(parent)
-        self.setWindowTitle('Test Results')
-        self.resize(720, 520)
-        self._runs = list(runs)
-        self._builddir = builddir
-        self._idx = 0
-
-        layout = QVBoxLayout(self)
-
-        self._out = QTextEdit()
-        self._out.setReadOnly(True)
-        self._out.setFont(QFont('monospace', 10))
-        layout.addWidget(self._out)
-
-        self._btn = QPushButton('Close')
-        self._btn.setEnabled(False)
-        self._btn.clicked.connect(self.accept)
-        layout.addWidget(self._btn)
-
-        self._proc = QProcess(self)
-        self._proc.setProcessChannelMode(QProcess.MergedChannels)
-        self._proc.readyRead.connect(
-            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
-        )
-        self._proc.finished.connect(self._on_finished)
+        if not runs:
+            return
+        if self._verbose.isChecked():
+            runs = [(label, args + ['--verbose']) for label, args in runs]
+        self._runs = runs
+        self._run_idx = 0
+        self._out.clear()
+        self._run_btn.setEnabled(False)
         self._run_next()
 
     def _run_next(self):
-        label, args = self._runs[self._idx]
+        label, args = self._runs[self._run_idx]
         self._append(f'=== {label} ===\n')
         self._proc.start('meson', ['test', '-C', str(self._builddir)] + args)
 
@@ -804,12 +766,12 @@ class MultiTestOutputDialog(QDialog):
 
     def _on_finished(self, code: int, _status):
         self._append(f'[exited {code}]\n')
-        self._idx += 1
-        if self._idx < len(self._runs):
+        self._run_idx += 1
+        if self._run_idx < len(self._runs):
             self._append('\n')
             self._run_next()
         else:
-            self._btn.setEnabled(True)
+            self._run_btn.setEnabled(True)
 
     def closeEvent(self, event):
         if self._proc.state() != QProcess.NotRunning:
@@ -919,11 +881,84 @@ class MainWindow(QMainWindow):
 
         view_menu = self.menuBar().addMenu('View')
         self._toolbar = self.addToolBar('Main Toolbar')
+        self._toolbar.setObjectName('main_toolbar')
         self._toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self._toolbar.addAction(self._open_terminal_action)
         self._toolbar_view_action = self._toolbar.toggleViewAction()
         self._toolbar_view_action.setText('Show Toolbar')
         view_menu.addAction(self._toolbar_view_action)
+
+        self._changed_dock = QDockWidget('Changed from defaults', self)
+        self._changed_dock.setObjectName('changed_dock')
+        self._changed_dock.setAllowedAreas(Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea)
+        self._changed_dock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
+        self._changed_dock.topLevelChanged.connect(self._on_changed_dock_float)
+        self.addDockWidget(Qt.TopDockWidgetArea, self._changed_dock)
+        self._changed_dock.hide()
+
+        self._compile_panel = CompilePanel()
+        self._compile_dock = QDockWidget('Compile', self)
+        self._compile_dock.setObjectName('compile_dock')
+        self._compile_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+        self._compile_dock.setWidget(self._compile_panel)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._compile_dock)
+        self._compile_dock.hide()
+
+        self._install_panel = InstallPanel()
+        self._install_dock = QDockWidget('Install', self)
+        self._install_dock.setObjectName('install_dock')
+        self._install_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+        self._install_dock.setWidget(self._install_panel)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._install_dock)
+        self._install_dock.hide()
+
+        self._dist_panel = DistPanel()
+        self._dist_dock = QDockWidget('Dist', self)
+        self._dist_dock.setObjectName('dist_dock')
+        self._dist_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+        self._dist_dock.setWidget(self._dist_panel)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._dist_dock)
+        self._dist_dock.hide()
+
+        self._subprojects_panel = SubprojectsPanel()
+        self._subprojects_dock = QDockWidget('Subprojects Update', self)
+        self._subprojects_dock.setObjectName('subprojects_dock')
+        self._subprojects_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+        self._subprojects_dock.setWidget(self._subprojects_panel)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._subprojects_dock)
+        self._subprojects_dock.hide()
+
+        self._test_panel = TestPanel()
+        self._test_dock = QDockWidget('Tests', self)
+        self._test_dock.setObjectName('test_dock')
+        self._test_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+        self._test_dock.setWidget(self._test_panel)
+        self.addDockWidget(Qt.RightDockWidgetArea, self._test_dock)
+        self._test_dock.hide()
+
+        self.tabifyDockWidget(self._compile_dock, self._install_dock)
+        self.tabifyDockWidget(self._install_dock, self._dist_dock)
+        self.tabifyDockWidget(self._dist_dock, self._subprojects_dock)
+        self.tabifyDockWidget(self._subprojects_dock, self._test_dock)
+
+        _panel_style = (
+            'QDockWidget {'
+            '  border-top: 4px solid #8ec6f0;'
+            '  border-left: 4px solid #8ec6f0;'
+            '  border-bottom: 4px solid #2a5a8a;'
+            '  border-right: 4px solid #2a5a8a;'
+            '}'
+        )
+        for _dock in (self._compile_dock, self._install_dock, self._dist_dock,
+                      self._subprojects_dock, self._test_dock):
+            _dock.setStyleSheet(_panel_style)
+
+        panels_menu = self.menuBar().addMenu('Panels')
+        panels_menu.addAction(self._compile_dock.toggleViewAction())
+        panels_menu.addAction(self._install_dock.toggleViewAction())
+        panels_menu.addAction(self._dist_dock.toggleViewAction())
+        panels_menu.addAction(self._subprojects_dock.toggleViewAction())
+        panels_menu.addAction(self._test_dock.toggleViewAction())
 
         help_menu = self.menuBar().addMenu('Help')
         self._about_action = help_menu.addAction('About')
@@ -945,15 +980,13 @@ class MainWindow(QMainWindow):
             'help_keybindings':  ('Configure Keybindings…',           self._keybindings_action),
             'tools_open_terminal': ('Open Terminal…',                 self._open_terminal_action),
             'view_toolbar':        ('Show Toolbar',                   self._toolbar_view_action),
+            'panels_compile':      ('Compile Panel',                  self._compile_dock.toggleViewAction()),
+            'panels_install':      ('Install Panel',                  self._install_dock.toggleViewAction()),
+            'panels_dist':         ('Dist Panel',                     self._dist_dock.toggleViewAction()),
+            'panels_subprojects':  ('Subprojects Panel',              self._subprojects_dock.toggleViewAction()),
+            'panels_test':         ('Test Panel',                     self._test_dock.toggleViewAction()),
         }
         self._apply_shortcuts(load_shortcuts())
-
-        self._changed_dock = QDockWidget('Changed from defaults', self)
-        self._changed_dock.setAllowedAreas(Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea)
-        self._changed_dock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
-        self._changed_dock.topLevelChanged.connect(self._on_changed_dock_float)
-        self.addDockWidget(Qt.TopDockWidgetArea, self._changed_dock)
-        self._changed_dock.hide()
 
         self._status_label = QLabel()
         self.statusBar().addPermanentWidget(self._status_label)
@@ -967,6 +1000,20 @@ class MainWindow(QMainWindow):
             QVBoxLayout(placeholder).addWidget(lbl)
             self.setCentralWidget(placeholder)
             self._status_label.setText('No build directory')
+
+        self._restore_window_state()
+
+    def _restore_window_state(self):
+        if _GEOMETRY_PATH.exists():
+            self.restoreGeometry(_GEOMETRY_PATH.read_bytes())
+        if _STATE_PATH.exists():
+            self.restoreState(_STATE_PATH.read_bytes())
+
+    def closeEvent(self, event):
+        _GEOMETRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _GEOMETRY_PATH.write_bytes(bytes(self.saveGeometry()))
+        _STATE_PATH.write_bytes(bytes(self.saveState()))
+        super().closeEvent(event)
 
     def _rebuild(self):
         if self._builddir:
@@ -1045,6 +1092,13 @@ class MainWindow(QMainWindow):
         self._subprojects_update_action.setEnabled(bool(source_dir))
         self._open_terminal_action.setEnabled(True)
 
+        self._compile_panel.set_builddir(self._builddir)
+        self._install_panel.set_builddir(self._builddir)
+        self._dist_panel.set_builddir(self._builddir)
+        self._subprojects_panel.set_source_dir(source_dir)
+        self._test_panel.set_builddir(self._builddir)
+        self._test_panel.set_test_items(self._test_items)
+
         # All options
         grp = QGroupBox('Build Options')
         gl = QVBoxLayout(grp)
@@ -1090,26 +1144,24 @@ class MainWindow(QMainWindow):
             desc = self._tbl.item(r, 3).text().lower()
             self._tbl.setRowHidden(r, bool(text) and text not in name and text not in desc)
 
+    def _show_panel(self, dock):
+        dock.show()
+        dock.raise_()
+
     def _run_compile(self):
-        MesonCompileDialog(self, self._builddir).exec_()
+        self._show_panel(self._compile_dock)
 
     def _run_install(self):
-        MesonInstallDialog(self, self._builddir).exec_()
+        self._show_panel(self._install_dock)
 
     def _run_dist(self):
-        MesonDistDialog(self, self._builddir).exec_()
+        self._show_panel(self._dist_dock)
 
     def _run_subprojects_update(self):
-        MesonSubprojectsUpdateDialog(self, self._source_dir).exec_()
+        self._show_panel(self._subprojects_dock)
 
     def _select_and_run_tests(self):
-        dlg = TestRunSelectDialog(self, self._test_items)
-        if dlg.exec_() == QDialog.Accepted:
-            runs, verbose = dlg.selected()
-            if runs:
-                if verbose:
-                    runs = [(label, args + ['--verbose']) for label, args in runs]
-                MultiTestOutputDialog(self, runs, self._builddir).exec_()
+        self._show_panel(self._test_dock)
 
     def _collect_options_to_save(self) -> dict:
         to_save = {}
