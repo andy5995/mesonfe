@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (
     QKeySequenceEdit, QAction, QSplitter, QMenu, QAbstractButton,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl, QEvent, QTimer
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QPalette, QIcon, QDesktopServices, QKeySequence, QCursor
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QCursor
 from platformdirs import user_config_dir
 
 try:
@@ -296,6 +296,39 @@ class KeybindingsDialog(QDialog):
                 for aid in self._editors}
 
 
+_HL_ERROR = re.compile(r'\berror\b', re.IGNORECASE)
+_HL_WARN  = re.compile(r'\bwarning\b', re.IGNORECASE)
+_HL_NOTE  = re.compile(r'\bnote\b', re.IGNORECASE)
+_HL_EXIT  = re.compile(r'^\[exited (\d+)\]')
+
+
+def _append_highlighted(out, text, buf):
+    combined = buf[0] + text
+    parts = combined.split('\n')
+    if combined.endswith('\n'):
+        buf[0] = ''
+        lines = parts[:-1]
+    else:
+        buf[0] = parts[-1]
+        lines = parts[:-1]
+    cursor = out.textCursor()
+    cursor.movePosition(QTextCursor.End)
+    for line in lines:
+        fmt = QTextCharFormat()
+        m = _HL_EXIT.match(line.strip())
+        if m:
+            fmt.setForeground(QColor('#90ee90' if m.group(1) == '0' else '#ff6b6b'))
+        elif _HL_ERROR.search(line) or 'FAILED' in line:
+            fmt.setForeground(QColor('#ff6b6b'))
+        elif _HL_WARN.search(line):
+            fmt.setForeground(QColor('#f0c060'))
+        elif _HL_NOTE.search(line):
+            fmt.setForeground(QColor('#87ceeb'))
+        cursor.insertText(line + '\n', fmt)
+    out.setTextCursor(cursor)
+    out.ensureCursorVisible()
+
+
 class MesonSetupDialog(QDialog):
     def __init__(self, parent: QWidget, args: list):
         super().__init__(parent)
@@ -316,14 +349,14 @@ class MesonSetupDialog(QDialog):
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
+        self._line_buf = ['']
         self._proc.start('meson', args)
 
     def _append(self, text: str):
-        self._out.moveCursor(QTextCursor.End)
-        self._out.insertPlainText(text)
+        _append_highlighted(self._out, text, self._line_buf)
 
     def _on_finished(self, code: int, _status):
-        self._append(f'\n[exited {code}]')
+        self._append(f'\n[exited {code}]\n')
         self._btn.setEnabled(True)
 
     def closeEvent(self, event):
@@ -376,6 +409,7 @@ class CompilePanel(QWidget):
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
+        self._line_buf = ['']
 
     def set_builddir(self, builddir):
         self._builddir = builddir
@@ -383,6 +417,7 @@ class CompilePanel(QWidget):
 
     def _run(self):
         self._out.clear()
+        self._line_buf[0] = ''
         self._run_btn.setEnabled(False)
         args = ['compile', '-C', str(self._builddir)]
         if self._jobs.value() > 0:
@@ -396,11 +431,10 @@ class CompilePanel(QWidget):
         self._proc.start('meson', args)
 
     def _append(self, text: str):
-        self._out.moveCursor(QTextCursor.End)
-        self._out.insertPlainText(text)
+        _append_highlighted(self._out, text, self._line_buf)
 
     def _on_finished(self, code: int, _status):
-        self._append(f'\n[exited {code}]')
+        self._append(f'\n[exited {code}]\n')
         self._run_btn.setEnabled(True)
 
     def closeEvent(self, event):
@@ -449,6 +483,7 @@ class InstallPanel(QWidget):
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
+        self._line_buf = ['']
 
     def set_builddir(self, builddir):
         self._builddir = builddir
@@ -456,6 +491,7 @@ class InstallPanel(QWidget):
 
     def _run(self):
         self._out.clear()
+        self._line_buf[0] = ''
         self._run_btn.setEnabled(False)
         args = ['install', '-C', str(self._builddir)]
         if self._dry_run.isChecked():
@@ -473,11 +509,10 @@ class InstallPanel(QWidget):
         self._proc.start('meson', args)
 
     def _append(self, text: str):
-        self._out.moveCursor(QTextCursor.End)
-        self._out.insertPlainText(text)
+        _append_highlighted(self._out, text, self._line_buf)
 
     def _on_finished(self, code: int, _status):
-        self._append(f'\n[exited {code}]')
+        self._append(f'\n[exited {code}]\n')
         self._run_btn.setEnabled(True)
 
     def closeEvent(self, event):
@@ -538,6 +573,7 @@ class DistPanel(QWidget):
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
+        self._line_buf = ['']
 
     def set_builddir(self, builddir):
         self._builddir = builddir
@@ -545,6 +581,7 @@ class DistPanel(QWidget):
 
     def _run(self):
         self._out.clear()
+        self._line_buf[0] = ''
         self._show_btn.setEnabled(False)
         self._run_btn.setEnabled(False)
         args = ['dist', '-C', str(self._builddir)]
@@ -562,11 +599,10 @@ class DistPanel(QWidget):
         self._proc.start('meson', args)
 
     def _append(self, text: str):
-        self._out.moveCursor(QTextCursor.End)
-        self._out.insertPlainText(text)
+        _append_highlighted(self._out, text, self._line_buf)
 
     def _on_finished(self, code: int, _status):
-        self._append(f'\n[exited {code}]')
+        self._append(f'\n[exited {code}]\n')
         self._run_btn.setEnabled(True)
         if code == 0:
             self._show_btn.setEnabled(True)
@@ -632,6 +668,7 @@ class SubprojectsPanel(QWidget):
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
+        self._line_buf = ['']
 
     def set_source_dir(self, source_dir):
         self._source_dir = source_dir
@@ -639,6 +676,7 @@ class SubprojectsPanel(QWidget):
 
     def _run(self):
         self._out.clear()
+        self._line_buf[0] = ''
         self._run_btn.setEnabled(False)
         args = ['subprojects', 'update', '--sourcedir', str(self._source_dir)]
         if self._reset.isChecked():
@@ -656,11 +694,10 @@ class SubprojectsPanel(QWidget):
         self._proc.start('meson', args)
 
     def _append(self, text: str):
-        self._out.moveCursor(QTextCursor.End)
-        self._out.insertPlainText(text)
+        _append_highlighted(self._out, text, self._line_buf)
 
     def _on_finished(self, code: int, _status):
-        self._append(f'\n[exited {code}]')
+        self._append(f'\n[exited {code}]\n')
         self._run_btn.setEnabled(True)
 
     def closeEvent(self, event):
@@ -715,6 +752,7 @@ class TestPanel(QWidget):
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
+        self._line_buf = ['']
 
     def set_builddir(self, builddir):
         self._builddir = builddir
@@ -756,6 +794,7 @@ class TestPanel(QWidget):
         self._runs = runs
         self._run_idx = 0
         self._out.clear()
+        self._line_buf[0] = ''
         self._run_btn.setEnabled(False)
         self._run_next()
 
@@ -765,8 +804,7 @@ class TestPanel(QWidget):
         self._proc.start('meson', ['test', '-C', str(self._builddir)] + args)
 
     def _append(self, text: str):
-        self._out.moveCursor(QTextCursor.End)
-        self._out.insertPlainText(text)
+        _append_highlighted(self._out, text, self._line_buf)
 
     def _on_finished(self, code: int, _status):
         self._append(f'[exited {code}]\n')
