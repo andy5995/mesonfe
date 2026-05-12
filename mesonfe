@@ -197,7 +197,7 @@ _DEFAULT_SHORTCUTS = {
     'meson_compile':     ('Compile…',                'Ctrl+B'),
     'meson_install':     ('Install…',                'Ctrl+I'),
     'meson_dist':        ('Dist…',                   'Ctrl+D'),
-    'meson_subprojects': ('Update Subprojects…',     'Ctrl+U'),
+    'meson_subprojects': ('Subprojects…',             'Ctrl+U'),
     'tests_display':     ('Display Tests…',          'Ctrl+T'),
     'help_about':        ('About',                   'F1'),
     'help_keybindings':  ('Configure Keybindings…',  'Ctrl+,'),
@@ -963,7 +963,7 @@ class MainWindow(QMainWindow):
         self._dist_action = meson_menu.addAction('Dist…')
         self._dist_action.triggered.connect(self._run_dist)
         self._dist_action.setEnabled(False)
-        self._subprojects_update_action = meson_menu.addAction('Update Subprojects…')
+        self._subprojects_update_action = meson_menu.addAction('Subprojects…')
         self._subprojects_update_action.triggered.connect(self._run_subprojects_update)
         self._subprojects_update_action.setEnabled(False)
 
@@ -1032,7 +1032,7 @@ class MainWindow(QMainWindow):
         self._dist_dock.hide()
 
         self._subprojects_panel = SubprojectsPanel()
-        self._subprojects_dock = PanelDock('Subprojects Update', self)
+        self._subprojects_dock = PanelDock('Subprojects', self)
         self._subprojects_dock.setObjectName('subprojects_dock')
         self._subprojects_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
         self._subprojects_dock.setWidget(self._subprojects_panel)
@@ -1514,6 +1514,23 @@ def _apply_dark_theme(app):
         QCheckBox::indicator:unchecked:hover,
         QListView::indicator:unchecked:hover {
             border-color: #aaaaaa;
+        }
+        QTabBar::tab {
+            background: #2a2a2a;
+            color: #aaaaaa;
+            padding: 4px 14px;
+            border: 1px solid #444444;
+            border-bottom: none;
+        }
+        QTabBar::tab:selected {
+            background: #3a3a3a;
+            color: #ffffff;
+            border-top: 2px solid #8ec6f0;
+            font-weight: bold;
+        }
+        QTabBar::tab:hover:!selected {
+            background: #333333;
+            color: #cccccc;
         }
     """)
 
