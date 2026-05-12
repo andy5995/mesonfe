@@ -739,6 +739,7 @@ class TestPanel(QWidget):
         self._runs = []
         self._run_idx = 0
         self._changing = False
+        self._checkbox_just_clicked = False
         layout = QVBoxLayout(self)
 
         splitter = QSplitter(Qt.Vertical)
@@ -791,9 +792,7 @@ class TestPanel(QWidget):
             self._list.addItem(item)
         self._run_btn.setEnabled(bool(items) and self._builddir is not None)
 
-    def _on_item_changed(self, changed_item):
-        if self._changing:
-            return
+    def _apply_mutual_exclusion(self, changed_item):
         self._changing = True
         default_item = self._list.item(0)
         if changed_item is default_item and changed_item.checkState() == Qt.Checked:
@@ -803,8 +802,21 @@ class TestPanel(QWidget):
             default_item.setCheckState(Qt.Unchecked)
         self._changing = False
 
+    def _on_item_changed(self, changed_item):
+        if self._changing:
+            return
+        self._checkbox_just_clicked = True
+        self._apply_mutual_exclusion(changed_item)
+
     def _toggle_item(self, item):
-        item.setCheckState(Qt.Unchecked if item.checkState() == Qt.Checked else Qt.Checked)
+        if self._checkbox_just_clicked:
+            self._checkbox_just_clicked = False
+            return
+        new_state = Qt.Unchecked if item.checkState() == Qt.Checked else Qt.Checked
+        self._changing = True
+        item.setCheckState(new_state)
+        self._changing = False
+        self._apply_mutual_exclusion(item)
 
     def _run(self):
         runs = [
