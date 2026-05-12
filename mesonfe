@@ -200,6 +200,7 @@ _DEFAULT_SHORTCUTS = {
     'meson_compile':     ('Compile…',                'Ctrl+B'),
     'meson_install':     ('Install…',                'Ctrl+I'),
     'meson_dist':        ('Dist…',                   'Ctrl+D'),
+    'meson_wipe':        ('Wipe…',                   ''),
     'meson_subprojects': ('Subprojects…',             'Ctrl+U'),
     'tests_display':     ('Display Tests…',          'Ctrl+T'),
     'help_about':        ('About',                   'F1'),
@@ -1277,6 +1278,12 @@ class MainWindow(QMainWindow):
         self._open_terminal_action.triggered.connect(self._open_terminal)
         self._open_terminal_action.setEnabled(False)
 
+        self._wipe_action = QAction('Wipe…', self)
+        self._wipe_action.setToolTip('Wipe and reconfigure the build directory (meson setup --wipe)')
+        self._wipe_action.setIcon(QIcon.fromTheme('edit-clear'))
+        self._wipe_action.triggered.connect(self._run_wipe)
+        self._wipe_action.setEnabled(False)
+
         self._tree_action = QAction('Build Files', self)
         self._tree_action.setToolTip('Show build files tree')
         self._tree_action.setCheckable(True)
@@ -1296,6 +1303,7 @@ class MainWindow(QMainWindow):
 
         tools_menu = self.menuBar().addMenu('Tools')
         tools_menu.addAction(self._open_terminal_action)
+        tools_menu.addAction(self._wipe_action)
         tools_menu.addAction(self._tree_action)
 
         view_menu = self.menuBar().addMenu('View')
@@ -1304,6 +1312,7 @@ class MainWindow(QMainWindow):
         self._toolbar.setObjectName('main_toolbar')
         self._toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self._toolbar.addAction(self._open_terminal_action)
+        self._toolbar.addAction(self._wipe_action)
         self._toolbar.addAction(self._tree_action)
         self._toolbar_view_action = self._toolbar.toggleViewAction()
         self._toolbar_view_action.setText('Show Toolbar')
@@ -1423,6 +1432,7 @@ class MainWindow(QMainWindow):
             'meson_compile':     ('Compile…',               self._compile_action),
             'meson_install':     ('Install…',               self._install_action),
             'meson_dist':        ('Dist…',                  self._dist_action),
+            'meson_wipe':        ('Wipe…',                  self._wipe_action),
             'meson_subprojects': ('Update Subprojects…',    self._subprojects_update_action),
             'tests_display':     ('Display Tests…',                   self._run_tests_action),
             'help_about':        ('About',                            self._about_action),
@@ -1547,6 +1557,7 @@ class MainWindow(QMainWindow):
         self._dist_action.setEnabled(True)
         self._subprojects_update_action.setEnabled(bool(source_dir))
         self._open_terminal_action.setEnabled(True)
+        self._wipe_action.setEnabled(True)
 
         self._compile_panel.set_builddir(self._builddir)
         self._install_panel.set_builddir(self._builddir)
@@ -1604,6 +1615,20 @@ class MainWindow(QMainWindow):
     def _show_panel(self, dock):
         dock.show()
         dock.raise_()
+
+    def _run_wipe(self):
+        reply = QMessageBox.question(
+            self, 'Wipe build directory',
+            f'Wipe and reconfigure\n{self._builddir}\n\nThis clears the build cache and re-runs meson setup. Continue?',
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        args = ['setup', '--wipe', str(self._source_dir), str(self._builddir)]
+        dlg = MesonSetupDialog(self, args)
+        dlg.exec_()
+        if _is_build_dir(self._builddir):
+            self._load_builddir(self._builddir)
 
     def _run_compile(self):
         self._show_panel(self._compile_dock)
