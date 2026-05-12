@@ -201,6 +201,7 @@ _DEFAULT_SHORTCUTS = {
     'tests_display':     ('Display Tests…',          'Ctrl+T'),
     'help_about':        ('About',                   'F1'),
     'help_keybindings':  ('Configure Keybindings…',  'Ctrl+,'),
+    'help_meson_docs':   ('Meson Documentation',     ''),
     'tools_open_terminal': ('Open Terminal…',         'Ctrl+Alt+T'),
     'view_toolbar':        ('Show Toolbar',           ''),
     'panels_build_options': ('Build Options Panel',    ''),
@@ -1097,6 +1098,10 @@ class MainWindow(QMainWindow):
         self._about_action.triggered.connect(self._show_about)
         self._keybindings_action = help_menu.addAction('Configure Keybindings…')
         self._keybindings_action.triggered.connect(self._configure_keybindings)
+        self._meson_docs_action = help_menu.addAction('Meson Documentation')
+        self._meson_docs_action.triggered.connect(
+            lambda: QDesktopServices.openUrl(QUrl('https://mesonbuild.com/'))
+        )
 
         self._action_map = {
             'file_open':         ('Open Build Directory…', self._open_action),
@@ -1110,6 +1115,7 @@ class MainWindow(QMainWindow):
             'tests_display':     ('Display Tests…',                   self._run_tests_action),
             'help_about':        ('About',                            self._about_action),
             'help_keybindings':  ('Configure Keybindings…',           self._keybindings_action),
+            'help_meson_docs':   ('Meson Documentation',              self._meson_docs_action),
             'tools_open_terminal': ('Open Terminal…',                 self._open_terminal_action),
             'view_toolbar':        ('Show Toolbar',                   self._toolbar_view_action),
             'panels_build_options': ('Build Options Panel',            self._build_options_dock.toggleViewAction()),
