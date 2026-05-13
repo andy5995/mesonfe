@@ -17,8 +17,8 @@ from PyQt5.QtWidgets import (
     QKeySequenceEdit, QAction, QSplitter, QTabWidget, QTabBar,
     QTreeWidget, QTreeWidgetItem, QPlainTextEdit,
 )
-from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
+from PyQt5.QtCore import Qt, QProcess, QUrl, QPointF, pyqtSignal
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap, QPolygonF
 from platformdirs import user_config_dir
 
 try:
@@ -212,7 +212,6 @@ _DEFAULT_SHORTCUTS = {
     'file_setup_rc':       '',
     'file_quit':           'Ctrl+Q',
     'build_save':          'Ctrl+S',
-    'build_setup':         'Ctrl+Shift+S',
     'meson_wipe':          '',
     'tools_remove_builddir': '',
     'help_about':          'F1',
@@ -1184,6 +1183,16 @@ class SetupPanel(QWidget):
 
         layout.addLayout(form)
 
+        rc_row = QHBoxLayout()
+        self._load_rc_btn = QPushButton('Load .mesonferc')
+        self._load_rc_btn.clicked.connect(self._load_from_mesonferc)
+        self._open_rc_btn = QPushButton('Open .mesonferc')
+        self._open_rc_btn.clicked.connect(self._open_mesonferc)
+        rc_row.addWidget(self._load_rc_btn)
+        rc_row.addWidget(self._open_rc_btn)
+        rc_row.addStretch()
+        layout.addLayout(rc_row)
+
         self._run_btn = QPushButton('Run meson setup')
         self._run_btn.clicked.connect(self._run)
         layout.addWidget(self._run_btn, alignment=Qt.AlignLeft)
@@ -1217,6 +1226,42 @@ class SetupPanel(QWidget):
         path = QFileDialog.getExistingDirectory(self, 'Select Build Directory', start)
         if path:
             self._bld_edit.setText(path)
+
+    def _load_from_mesonferc(self):
+        src = self._src_edit.text().strip()
+        if not src:
+            QMessageBox.warning(self.window(), 'No source directory',
+                                'Set the source directory first.')
+            return
+        rc_path = Path(src) / '.mesonferc'
+        if not rc_path.exists():
+            QMessageBox.information(self.window(), 'Not found',
+                                    f'No .mesonferc found in {src}')
+            return
+        for line in rc_path.read_text().splitlines():
+            line = line.strip()
+            if line.startswith('#') or '=' not in line:
+                continue
+            key, _, val = line.partition('=')
+            if key.strip() == 'default_builddir':
+                self._bld_edit.setText(val.strip().strip('"'))
+                break
+        opts = load_mesonferc_options(rc_path)
+        if opts:
+            self._args_edit.setText(' '.join(f'-D{k}={v}' for k, v in opts.items()))
+
+    def _open_mesonferc(self):
+        src = self._src_edit.text().strip()
+        if not src:
+            QMessageBox.warning(self.window(), 'No source directory',
+                                'Set the source directory first.')
+            return
+        rc_path = Path(src) / '.mesonferc'
+        if not rc_path.exists():
+            QMessageBox.information(self.window(), 'Not found',
+                                    f'No .mesonferc found in {src}')
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(rc_path)))
 
     def _run(self):
         src = self._src_edit.text().strip()
@@ -1276,13 +1321,11 @@ class MainWindow(QMainWindow):
         self._prefs_action = edit_menu.addAction('Preferences…')
         self._prefs_action.triggered.connect(self._show_preferences)
 
-        build_menu = self.menuBar().addMenu('Build')
-        self._save_rc_action = build_menu.addAction('Save options to .mesonferc')
+        self._save_rc_action = QAction('Save options to .mesonferc', self)
+        self._save_rc_action.setToolTip('Save non-default build options to .mesonferc')
+        self._save_rc_action.setIcon(self._make_save_icon())
         self._save_rc_action.triggered.connect(self._save_to_mesonferc)
         self._save_rc_action.setEnabled(False)
-        self._setup_rc_action = build_menu.addAction('Setup from .mesonferc')
-        self._setup_rc_action.triggered.connect(self._setup_from_mesonferc)
-        self._setup_rc_action.setEnabled(False)
 
 
         self._open_terminal_action = QAction('Open Terminal…', self)
@@ -1332,6 +1375,7 @@ class MainWindow(QMainWindow):
 
         tools_menu = self.menuBar().addMenu('Tools')
         tools_menu.addAction(self._open_terminal_action)
+        tools_menu.addAction(self._save_rc_action)
         tools_menu.addAction(self._wipe_action)
         tools_menu.addAction(self._remove_builddir_action)
         tools_menu.addAction(self._tree_action)
@@ -1342,6 +1386,7 @@ class MainWindow(QMainWindow):
         self._toolbar.setObjectName('main_toolbar')
         self._toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self._toolbar.addAction(self._open_terminal_action)
+        self._toolbar.addAction(self._save_rc_action)
         self._toolbar.addAction(self._wipe_action)
         self._toolbar.addAction(self._remove_builddir_action)
         self._toolbar.addAction(self._tree_action)
@@ -1431,7 +1476,6 @@ class MainWindow(QMainWindow):
             'file_setup_rc':     ('Setup from .mesonferc…', self._setup_rc_file_action),
             'file_quit':         ('Quit',                  self._quit_action),
             'build_save':        ('Save options to .mesonferc', self._save_rc_action),
-            'build_setup':       ('Setup from .mesonferc',  self._setup_rc_action),
             'meson_wipe':        ('Wipe…',                  self._wipe_action),
             'tools_remove_builddir': ('Remove Build Directory…', self._remove_builddir_action),
             'help_about':        ('About',                            self._about_action),
@@ -1516,9 +1560,6 @@ class MainWindow(QMainWindow):
 
         self._changed = changed
         self._save_rc_action.setEnabled(bool(source_dir))
-        self._setup_rc_action.setEnabled(
-            bool(source_dir and (source_dir / '.mesonferc').exists())
-        )
 
         lay = self._changed_container.layout()
         while lay.count():
@@ -1739,6 +1780,35 @@ class MainWindow(QMainWindow):
             self._load_builddir(self._builddir)
 
     @staticmethod
+    def _make_save_icon(size: int = 16) -> QIcon:
+        pix = QPixmap(size, size)
+        pix.fill(Qt.transparent)
+        painter = QPainter(pix)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor('#2a7a2a'))
+        painter.drawEllipse(0, 0, size, size)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor('white'))
+        # Down-pointing arrow: shaft + head
+        cx = size / 2
+        shaft_w = size * 0.2
+        shaft_top = size * 0.18
+        shaft_bot = size * 0.55
+        head_w = size * 0.5
+        head_top = size * 0.52
+        head_bot = size * 0.82
+        painter.drawRect(int(cx - shaft_w / 2), int(shaft_top),
+                         int(shaft_w), int(shaft_bot - shaft_top))
+        painter.drawPolygon(QPolygonF([
+            QPointF(cx - head_w / 2, head_top),
+            QPointF(cx + head_w / 2, head_top),
+            QPointF(cx, head_bot),
+        ]))
+        painter.end()
+        return QIcon(pix)
+
+    @staticmethod
     def _make_remove_icon(size: int = 16) -> QIcon:
         pix = QPixmap(size, size)
         pix.fill(Qt.transparent)
@@ -1809,7 +1879,6 @@ class MainWindow(QMainWindow):
             return
         rc_path = self._source_dir / '.mesonferc'
         save_mesonferc_options(rc_path, options)
-        self._setup_rc_action.setEnabled(True)
         QMessageBox.information(self, 'Saved', f'Saved {len(options)} option(s) to {rc_path.name}.')
 
     def _setup_from_mesonferc_file(self):
@@ -1854,37 +1923,6 @@ class MainWindow(QMainWindow):
         dlg.exec_()
         if _is_build_dir(builddir):
             self._load_builddir(builddir)
-
-    def _setup_from_mesonferc(self):
-        rc_path = self._source_dir / '.mesonferc'
-        rc_options = load_mesonferc_options(rc_path)
-        if not rc_options:
-            QMessageBox.information(self, 'No saved options', f'No [options] section found in {rc_path.name}.')
-            return
-
-        current_opts = self._collect_options_to_save()
-        will_apply = [f'  -D{k}={v}' for k, v in rc_options.items()]
-        will_reset = [
-            f'  {k}={current_opts[k]}'
-            for k in current_opts
-            if k not in rc_options
-        ]
-
-        msg = 'Will apply:\n' + '\n'.join(will_apply)
-        if will_reset:
-            msg += '\n\nCurrently set but not in .mesonferc (will reset to default):\n' + '\n'.join(will_reset)
-        msg += '\n\nContinue?'
-
-        if QMessageBox.question(self, 'Setup from .mesonferc', msg) != QMessageBox.Yes:
-            return
-
-        d_args = [f'-D{k}={v}' for k, v in rc_options.items()]
-        builddir = str(self._builddir.resolve(strict=False))
-        has_build = (self._builddir / 'meson-info').exists()
-        args = ['setup', str(self._source_dir), builddir] + (['--reconfigure'] + d_args if has_build else d_args)
-        dlg = MesonSetupDialog(self, args, self._output_font_size)
-        dlg.exec_()
-        self._rebuild()
 
     def _refresh_recent_menu(self):
         self._recent_menu.clear()
