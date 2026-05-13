@@ -212,7 +212,7 @@ _DEFAULT_SHORTCUTS = {
     'build_setup':       ('Setup from .mesonferc',   'Ctrl+Shift+S'),
     'meson_wipe':        ('Wipe…',                   ''),
     'help_about':        ('About',                   'F1'),
-    'help_keybindings':  ('Configure Keybindings…',  'Ctrl+,'),
+    'edit_preferences':  ('Preferences…',             'Ctrl+,'),
     'help_meson_docs':   ('Meson Documentation',     ''),
     'tools_open_terminal': ('Open Terminal…',         'Ctrl+Alt+T'),
     'view_toolbar':        ('Show Toolbar',           ''),
@@ -1299,8 +1299,6 @@ class MainWindow(QMainWindow):
         help_menu = self.menuBar().addMenu('Help')
         self._about_action = help_menu.addAction('About')
         self._about_action.triggered.connect(self._show_about)
-        self._keybindings_action = help_menu.addAction('Configure Keybindings…')
-        self._keybindings_action.triggered.connect(self._configure_keybindings)
         self._meson_docs_action = help_menu.addAction('Meson Documentation')
         self._meson_docs_action.triggered.connect(
             lambda: QDesktopServices.openUrl(QUrl('https://mesonbuild.com/'))
@@ -1314,7 +1312,7 @@ class MainWindow(QMainWindow):
             'build_setup':       ('Setup from .mesonferc',  self._setup_rc_action),
             'meson_wipe':        ('Wipe…',                  self._wipe_action),
             'help_about':        ('About',                            self._about_action),
-            'help_keybindings':  ('Configure Keybindings…',           self._keybindings_action),
+            'edit_preferences':  ('Preferences…',                     self._prefs_action),
             'help_meson_docs':   ('Meson Documentation',              self._meson_docs_action),
             'tools_open_terminal': ('Open Terminal…',                 self._open_terminal_action),
             'view_toolbar':        ('Show Toolbar',                   self._toolbar_view_action),
@@ -1512,6 +1510,10 @@ class MainWindow(QMainWindow):
         form.addWidget(spin)
         layout.addLayout(form)
 
+        kb_btn = QPushButton('Keybindings…')
+        kb_btn.clicked.connect(lambda: self._open_keybindings(dlg))
+        layout.addWidget(kb_btn, alignment=Qt.AlignLeft)
+
         btns = QHBoxLayout()
         btns.addStretch()
         ok_btn = QPushButton('OK')
@@ -1533,6 +1535,13 @@ class MainWindow(QMainWindow):
         settings = load_settings()
         settings['output_font_size'] = size
         save_settings(settings)
+
+    def _open_keybindings(self, parent=None):
+        dialog = KeybindingsDialog(parent or self, self._action_map)
+        if dialog.exec_() == QDialog.Accepted:
+            shortcuts = dialog.get_shortcuts()
+            save_shortcuts(shortcuts)
+            self._apply_shortcuts(shortcuts)
 
     def _make_close_btn(self, key):
         btn = QPushButton('✕')
@@ -1735,13 +1744,6 @@ class MainWindow(QMainWindow):
         for action_id, (_name, action) in self._action_map.items():
             key = overrides.get(action_id, _DEFAULT_SHORTCUTS[action_id][1])
             action.setShortcut(QKeySequence(key))
-
-    def _configure_keybindings(self):
-        dialog = KeybindingsDialog(self, self._action_map)
-        if dialog.exec_() == QDialog.Accepted:
-            shortcuts = dialog.get_shortcuts()
-            save_shortcuts(shortcuts)
-            self._apply_shortcuts(shortcuts)
 
     def _show_about(self):
         QMessageBox.about(
