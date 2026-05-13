@@ -1808,7 +1808,9 @@ class MainWindow(QMainWindow):
             f'<b>mesonfe</b> {"v" + VERSION if VERSION != "unknown" else "(development)"}<br>'
             'A PyQt5 GUI frontend for Meson build options.<br><br>'
             f'<a href="{_URL}">{_URL}</a><br><br>'
-            'License: MIT',
+            'License: MIT<br><br>'
+            '<i>Disclaimer: This project is not affiliated with or endorsed by the '
+            '<a href="https://mesonbuild.com/">Meson project</a> or its developers.</i>',
         )
 
     def _toggle_tree_dock(self, checked):
