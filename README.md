@@ -39,7 +39,17 @@ default_builddir = _build
 current non-default values. **Build → Setup from .mesonferc** runs `meson setup`
 using those options, with a confirmation preview.
 
+## Running without installing
+
+Clone the repository and run the script directly:
+
+```sh
+./mesonfe
+```
+
 ## Build & install
+
+A build step is only needed for a system-wide install:
 
 ```sh
 meson setup _build
