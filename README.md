@@ -1,21 +1,13 @@
 # mesonfe
 
-A PyQt5 GUI frontend for the [Meson](https://mesonbuild.com/) build system. Browse and
-edit build options, run compile and install steps, and execute test suites.
+A PyQt5 GUI frontend for the [Meson](https://mesonbuild.com/) build system.
+Browse and edit build options, run compile and install steps, and execute test
+suites — all without leaving a graphical interface.
 
 ## Disclaimer
 
 This project is not affiliated with or endorsed by the Meson project or its
 developers.
-
-## Features
-
-- Displays all build options with their current values and descriptions
-- Filter options by name or description
-- Apply changes via `meson configure`
-- Dockable panel showing options that differ from their defaults
-- File, Build, Meson, Tests, and Help menus
-- Recently opened build directories
 
 ## Dependencies
 
@@ -40,7 +32,7 @@ Place `.mesonferc` in your project root or its parent. `mesonfe` walks up one
 directory level when searching for it.
 
 ```ini
-default_builddir = builddir
+default_builddir = _build
 ```
 
 **Build → Save options to .mesonferc** adds an `[options]` section with the
@@ -50,8 +42,8 @@ using those options, with a confirmation preview.
 ## Build & install
 
 ```sh
-meson setup builddir
-meson install -C builddir
+meson setup _build
+meson install -C _build
 ```
 
 Installs `mesonfe` to `bindir` (default `/usr/local/bin`), a `mesonfe` Python
