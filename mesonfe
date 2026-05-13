@@ -189,6 +189,7 @@ _RECENT_MAX = 10
 
 _SHORTCUT_PATH  = Path(user_config_dir('mesonfe')) / 'keybindings.json'
 _GEOMETRY_PATH  = Path(user_config_dir('mesonfe')) / 'windowgeometry.bin'
+_VIEWER_GEOMETRY_PATH = Path(user_config_dir('mesonfe')) / 'viewergeometry.bin'
 _STATE_PATH     = Path(user_config_dir('mesonfe')) / 'windowstate.bin'
 _TAB_VIS_PATH   = Path(user_config_dir('mesonfe')) / 'tabvisibility.json'
 _SETTINGS_PATH  = Path(user_config_dir('mesonfe')) / 'settings.json'
@@ -1034,6 +1035,8 @@ class BuildFileViewer(QDialog):
         super().__init__(parent)
         self.setWindowTitle(str(rel))
         self.resize(800, 600)
+        if _VIEWER_GEOMETRY_PATH.exists():
+            self.restoreGeometry(_VIEWER_GEOMETRY_PATH.read_bytes())
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -1057,6 +1060,11 @@ class BuildFileViewer(QDialog):
         btn = QPushButton('Close')
         btn.clicked.connect(self.accept)
         layout.addWidget(btn)
+
+    def done(self, result):
+        _VIEWER_GEOMETRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _VIEWER_GEOMETRY_PATH.write_bytes(bytes(self.saveGeometry()))
+        super().done(result)
 
 
 class BuildFilesPanel(QWidget):
