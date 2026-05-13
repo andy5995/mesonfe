@@ -33,8 +33,9 @@ setup, the new build directory is opened automatically.
 
 ## Configuration
 
-Place `.mesonferc` in your project root or its parent. `mesonfe` walks up one
-directory level when searching for it.
+`mesonfe` looks for `.mesonferc` in the current directory or one level up. On
+first run a template is written to the mesonfe configuration directory; the
+Setup tab's **Create .mesonferc** copies it into the current source directory.
 
 ```ini
 default_builddir = _build
@@ -43,14 +44,6 @@ default_builddir = _build
 # buildtype = debugoptimized
 # prefix = /usr
 ```
-
-On first run, a template `default.mesonferc` is written to the mesonfe
-configuration directory. The **Create .mesonferc** button in the Setup tab
-copies it into the current source directory. **Load .mesonferc** reads the file
-and populates the build directory and extra args fields.
-
-**Tools → Save options to .mesonferc** saves the current non-default build
-options to `.mesonferc` so they can be reproduced later.
 
 ## Running without installing
 

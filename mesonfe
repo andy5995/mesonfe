@@ -39,6 +39,8 @@ def find_builddir():
     if _is_build_dir(Path('.')):
         return Path('.')
     for base in (Path('.'), Path('..')):
+        if base == Path('..') and not (base / 'meson.build').exists():
+            continue
         rc = base / '.mesonferc'
         if rc.exists():
             for line in rc.read_text().splitlines():
@@ -48,7 +50,7 @@ def find_builddir():
                 key, _, val = line.partition('=')
                 if key.strip() == 'default_builddir':
                     return base / val.strip().strip('"')
-            return base / 'builddir'
+            return base / '_build'
     return None
 
 
