@@ -17,8 +17,8 @@ from PyQt5.QtWidgets import (
     QKeySequenceEdit, QAction, QSplitter, QTabWidget, QTabBar,
     QTreeWidget, QTreeWidgetItem, QPlainTextEdit,
 )
-from PyQt5.QtCore import Qt, QProcess, QUrl, QPointF, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap, QPolygonF
+from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
 from platformdirs import user_config_dir
 
 try:
@@ -206,30 +206,6 @@ def load_mesonferc_options(rc_path: Path) -> dict:
     return opts
 
 
-def save_mesonferc_options(rc_path: Path, options: dict):
-    existing = rc_path.read_text().splitlines() if rc_path.exists() else []
-    top_lines = []
-    in_options = False
-    for line in existing:
-        stripped = line.strip()
-        if stripped == '[options]':
-            in_options = True
-        elif stripped.startswith('['):
-            in_options = False
-            top_lines.append(line)
-        elif not in_options:
-            top_lines.append(line)
-    while top_lines and not top_lines[-1].strip():
-        top_lines.pop()
-    lines = top_lines
-    if options:
-        if lines:
-            lines.append('')
-        lines.append('[options]')
-        for key, val in options.items():
-            lines.append(f'{key} = {val}')
-    rc_path.write_text('\n'.join(lines) + '\n')
-
 
 _RECENT_PATH = Path(user_config_dir('mesonfe')) / 'recent.json'
 _RECENT_MAX = 10
@@ -275,7 +251,6 @@ _DEFAULT_SHORTCUTS = {
     'file_open_project':   '',
     'file_setup_rc':       '',
     'file_quit':           'Ctrl+Q',
-    'build_save':          'Ctrl+S',
     'meson_wipe':          '',
     'tools_remove_builddir': '',
     'help_about':          'F1',
@@ -1432,12 +1407,6 @@ class MainWindow(QMainWindow):
         self._prefs_action = edit_menu.addAction('Preferences…')
         self._prefs_action.triggered.connect(self._show_preferences)
 
-        self._save_rc_action = QAction('Save options to .mesonferc', self)
-        self._save_rc_action.setToolTip('Save non-default build options to .mesonferc')
-        self._save_rc_action.setIcon(self._make_save_icon())
-        self._save_rc_action.triggered.connect(self._save_to_mesonferc)
-        self._save_rc_action.setEnabled(False)
-
 
         self._open_terminal_action = QAction('Open Terminal…', self)
         self._open_terminal_action.setToolTip('Open the build directory in a terminal')
@@ -1486,7 +1455,6 @@ class MainWindow(QMainWindow):
 
         tools_menu = self.menuBar().addMenu('Tools')
         tools_menu.addAction(self._open_terminal_action)
-        tools_menu.addAction(self._save_rc_action)
         tools_menu.addAction(self._wipe_action)
         tools_menu.addAction(self._remove_builddir_action)
         tools_menu.addAction(self._tree_action)
@@ -1497,7 +1465,6 @@ class MainWindow(QMainWindow):
         self._toolbar.setObjectName('main_toolbar')
         self._toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self._toolbar.addAction(self._open_terminal_action)
-        self._toolbar.addAction(self._save_rc_action)
         self._toolbar.addAction(self._wipe_action)
         self._toolbar.addAction(self._remove_builddir_action)
         self._toolbar.addAction(self._tree_action)
@@ -1586,7 +1553,6 @@ class MainWindow(QMainWindow):
             'file_open_project': ('Open Project Directory…', self._open_project_action),
             'file_setup_rc':     ('Setup from .mesonferc…', self._setup_rc_file_action),
             'file_quit':         ('Quit',                  self._quit_action),
-            'build_save':        ('Save options to .mesonferc', self._save_rc_action),
             'meson_wipe':        ('Wipe…',                  self._wipe_action),
             'tools_remove_builddir': ('Remove Build Directory…', self._remove_builddir_action),
             'help_about':        ('About',                            self._about_action),
@@ -1670,7 +1636,6 @@ class MainWindow(QMainWindow):
                 changed.append((opt, None))
 
         self._changed = changed
-        self._save_rc_action.setEnabled(bool(source_dir))
 
         lay = self._changed_container.layout()
         while lay.count():
@@ -1891,34 +1856,6 @@ class MainWindow(QMainWindow):
             self._load_builddir(self._builddir)
 
     @staticmethod
-    def _make_save_icon(size: int = 16) -> QIcon:
-        pix = QPixmap(size, size)
-        pix.fill(Qt.transparent)
-        painter = QPainter(pix)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor('#2a7a2a'))
-        painter.drawEllipse(0, 0, size, size)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor('white'))
-        # Down-pointing arrow: shaft + head
-        cx = size / 2
-        shaft_w = size * 0.2
-        shaft_top = size * 0.18
-        shaft_bot = size * 0.55
-        head_w = size * 0.5
-        head_top = size * 0.52
-        head_bot = size * 0.82
-        painter.drawRect(int(cx - shaft_w / 2), int(shaft_top),
-                         int(shaft_w), int(shaft_bot - shaft_top))
-        painter.drawPolygon(QPolygonF([
-            QPointF(cx - head_w / 2, head_top),
-            QPointF(cx + head_w / 2, head_top),
-            QPointF(cx, head_bot),
-        ]))
-        painter.end()
-        return QIcon(pix)
-
     @staticmethod
     def _make_remove_icon(size: int = 16) -> QIcon:
         pix = QPixmap(size, size)
@@ -1969,28 +1906,6 @@ class MainWindow(QMainWindow):
         self._set_build_options_widget(placeholder)
         self._set_tabs_enabled(False)
         self._tabs.setCurrentWidget(self._setup_panel)
-
-    def _collect_options_to_save(self) -> dict:
-        to_save = {}
-        for opt, _ in self._changed:
-            v = opt['value']
-            to_save[opt['name']] = ','.join(str(x) for x in v) if isinstance(v, list) else str(v)
-        for r in range(self._tbl.rowCount()):
-            if self._tbl.isRowHidden(r):
-                continue
-            w = self._tbl.cellWidget(r, 2)
-            if w.current() != w.original():
-                to_save[self._options[r]['name']] = w.current()
-        return to_save
-
-    def _save_to_mesonferc(self):
-        options = self._collect_options_to_save()
-        if not options:
-            QMessageBox.information(self, 'Nothing to save', 'No options differ from defaults.')
-            return
-        rc_path = self._source_dir / '.mesonferc'
-        save_mesonferc_options(rc_path, options)
-        QMessageBox.information(self, 'Saved', f'Saved {len(options)} option(s) to {rc_path.name}.')
 
     def _setup_from_mesonferc_file(self):
         source_dir = QFileDialog.getExistingDirectory(
