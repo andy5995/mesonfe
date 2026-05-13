@@ -3,6 +3,11 @@
 A PyQt5 GUI frontend for the [Meson](https://mesonbuild.com/) build system. Browse and
 edit build options, run compile and install steps, and execute test suites.
 
+## Disclaimer
+
+This project is not affiliated with or endorsed by the Meson project or its
+developers.
+
 ## Features
 
 - Displays all build options with their current values and descriptions
