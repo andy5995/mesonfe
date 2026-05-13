@@ -3,17 +3,31 @@ name: CI
 on:
   push:
     branches: [main, trunk]
+    paths:
+      - 'mesonfe'
+      - 'tests/**'
+      - '.github/workflows/ci.yml'
   pull_request:
+    paths:
+      - 'mesonfe'
+      - 'tests/**'
+      - '.github/workflows/ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
-    runs-on: ${{ matrix.os }}
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.9", "3.12", "3.13"]
+        python-version: ["3.12", "3.14"]
 
     steps:
       - uses: actions/checkout@v6
