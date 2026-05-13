@@ -26,6 +26,11 @@ mesonfe /path/to/builddir  # explicit build directory
 If no build directory is found automatically, the window opens and you can use
 **File → Open Build Directory…** to select one.
 
+To set up a new build from scratch, use **File → Open Project Directory…** to
+select a source directory. This enables the **Setup** tab, where you can specify
+a build directory and extra args before running `meson setup`. After a successful
+setup, the new build directory is opened automatically.
+
 ## Configuration
 
 Place `.mesonferc` in your project root or its parent. `mesonfe` walks up one
@@ -33,11 +38,19 @@ directory level when searching for it.
 
 ```ini
 default_builddir = _build
+
+[options]
+# buildtype = debugoptimized
+# prefix = /usr
 ```
 
-**Build → Save options to .mesonferc** adds an `[options]` section with the
-current non-default values. **Build → Setup from .mesonferc** runs `meson setup`
-using those options, with a confirmation preview.
+On first run, a template `default.mesonferc` is written to the mesonfe
+configuration directory. The **Create .mesonferc** button in the Setup tab
+copies it into the current source directory. **Load .mesonferc** reads the file
+and populates the build directory and extra args fields.
+
+**Tools → Save options to .mesonferc** saves the current non-default build
+options to `.mesonferc` so they can be reproduced later.
 
 ## Running without installing
 

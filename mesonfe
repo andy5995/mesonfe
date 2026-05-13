@@ -194,6 +194,17 @@ _VIEWER_GEOMETRY_PATH = Path(user_config_dir('mesonfe')) / 'viewergeometry.bin'
 _STATE_PATH     = Path(user_config_dir('mesonfe')) / 'windowstate.bin'
 _TAB_VIS_PATH   = Path(user_config_dir('mesonfe')) / 'tabvisibility.json'
 _SETTINGS_PATH  = Path(user_config_dir('mesonfe')) / 'settings.json'
+_DEFAULT_RC_PATH = Path(user_config_dir('mesonfe')) / 'default.mesonferc'
+
+_DEFAULT_RC_CONTENT = """\
+default_builddir = _build
+
+[options]
+# buildtype = debugoptimized
+# prefix = /usr
+# default_library = shared
+# b_lto = true
+"""
 
 _DEFAULT_OUTPUT_FONT_SIZE = 13
 
@@ -232,6 +243,12 @@ def load_shortcuts() -> dict:
 def save_shortcuts(shortcuts: dict):
     _SHORTCUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     _SHORTCUT_PATH.write_text(json.dumps(shortcuts, indent=2))
+
+
+def ensure_default_mesonferc():
+    if not _DEFAULT_RC_PATH.exists():
+        _DEFAULT_RC_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _DEFAULT_RC_PATH.write_text(_DEFAULT_RC_CONTENT)
 
 
 def load_settings() -> dict:
@@ -1184,10 +1201,13 @@ class SetupPanel(QWidget):
         layout.addLayout(form)
 
         rc_row = QHBoxLayout()
+        self._create_rc_btn = QPushButton('Create .mesonferc')
+        self._create_rc_btn.clicked.connect(self._create_mesonferc)
         self._load_rc_btn = QPushButton('Load .mesonferc')
         self._load_rc_btn.clicked.connect(self._load_from_mesonferc)
         self._open_rc_btn = QPushButton('Open .mesonferc')
         self._open_rc_btn.clicked.connect(self._open_mesonferc)
+        rc_row.addWidget(self._create_rc_btn)
         rc_row.addWidget(self._load_rc_btn)
         rc_row.addWidget(self._open_rc_btn)
         rc_row.addStretch()
@@ -1226,6 +1246,25 @@ class SetupPanel(QWidget):
         path = QFileDialog.getExistingDirectory(self, 'Select Build Directory', start)
         if path:
             self._bld_edit.setText(path)
+
+    def _create_mesonferc(self):
+        src = self._src_edit.text().strip()
+        if not src:
+            QMessageBox.warning(self.window(), 'No source directory',
+                                'Set the source directory first.')
+            return
+        rc_path = Path(src) / '.mesonferc'
+        if rc_path.exists():
+            reply = QMessageBox.warning(
+                self.window(), 'File exists',
+                f'.mesonferc already exists in {src}\n\nOverwrite?',
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                return
+        shutil.copy(_DEFAULT_RC_PATH, rc_path)
+        QMessageBox.information(self.window(), 'Created', f'Created {rc_path}')
 
     def _load_from_mesonferc(self):
         src = self._src_edit.text().strip()
@@ -2143,6 +2182,7 @@ def _apply_dark_theme(app):
 
 
 def main():
+    ensure_default_mesonferc()
     app = QApplication(sys.argv)
     _apply_dark_theme(app)
     icon = QIcon.fromTheme('mesonfe')
