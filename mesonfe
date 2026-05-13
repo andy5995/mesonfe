@@ -4,6 +4,7 @@ import os
 import platform
 import sys
 import json
+import shutil
 import subprocess
 import re
 from pathlib import Path
@@ -17,7 +18,7 @@ from PyQt5.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QPlainTextEdit,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
 from platformdirs import user_config_dir
 
 try:
@@ -213,6 +214,7 @@ _DEFAULT_SHORTCUTS = {
     'build_save':          'Ctrl+S',
     'build_setup':         'Ctrl+Shift+S',
     'meson_wipe':          '',
+    'tools_remove_builddir': '',
     'help_about':          'F1',
     'edit_preferences':    'Ctrl+,',
     'help_meson_docs':     '',
@@ -1305,6 +1307,12 @@ class MainWindow(QMainWindow):
         self._wipe_action.triggered.connect(self._run_wipe)
         self._wipe_action.setEnabled(False)
 
+        self._remove_builddir_action = QAction('Remove Build Directory…', self)
+        self._remove_builddir_action.setToolTip('Permanently delete the current build directory')
+        self._remove_builddir_action.setIcon(self._make_remove_icon())
+        self._remove_builddir_action.triggered.connect(self._remove_builddir)
+        self._remove_builddir_action.setEnabled(False)
+
         self._tree_action = QAction('Build Files', self)
         self._tree_action.setCheckable(True)
         self._tree_action.setToolTip('Show build files tree')
@@ -1325,6 +1333,7 @@ class MainWindow(QMainWindow):
         tools_menu = self.menuBar().addMenu('Tools')
         tools_menu.addAction(self._open_terminal_action)
         tools_menu.addAction(self._wipe_action)
+        tools_menu.addAction(self._remove_builddir_action)
         tools_menu.addAction(self._tree_action)
 
         view_menu = self.menuBar().addMenu('View')
@@ -1334,6 +1343,7 @@ class MainWindow(QMainWindow):
         self._toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self._toolbar.addAction(self._open_terminal_action)
         self._toolbar.addAction(self._wipe_action)
+        self._toolbar.addAction(self._remove_builddir_action)
         self._toolbar.addAction(self._tree_action)
         self._toolbar_view_action = self._toolbar.toggleViewAction()
         self._toolbar_view_action.setText('Show Toolbar')
@@ -1423,6 +1433,7 @@ class MainWindow(QMainWindow):
             'build_save':        ('Save options to .mesonferc', self._save_rc_action),
             'build_setup':       ('Setup from .mesonferc',  self._setup_rc_action),
             'meson_wipe':        ('Wipe…',                  self._wipe_action),
+            'tools_remove_builddir': ('Remove Build Directory…', self._remove_builddir_action),
             'help_about':        ('About',                            self._about_action),
             'edit_preferences':  ('Preferences…',                     self._prefs_action),
             'help_meson_docs':   ('Meson Documentation',              self._meson_docs_action),
@@ -1548,6 +1559,7 @@ class MainWindow(QMainWindow):
             self._test_items = []
         self._open_terminal_action.setEnabled(True)
         self._wipe_action.setEnabled(True)
+        self._remove_builddir_action.setEnabled(True)
 
         self._compile_panel.set_builddir(self._builddir)
         self._install_panel.set_builddir(self._builddir)
@@ -1725,6 +1737,57 @@ class MainWindow(QMainWindow):
         dlg.exec_()
         if _is_build_dir(self._builddir):
             self._load_builddir(self._builddir)
+
+    @staticmethod
+    def _make_remove_icon(size: int = 16) -> QIcon:
+        pix = QPixmap(size, size)
+        pix.fill(Qt.transparent)
+        painter = QPainter(pix)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor('#cc2222'))
+        painter.drawEllipse(0, 0, size, size)
+        pen = QPen(QColor('white'), max(2, size // 5), Qt.SolidLine, Qt.RoundCap)
+        painter.setPen(pen)
+        margin = size // 4
+        mid = size // 2
+        painter.drawLine(margin, mid, size - margin, mid)
+        painter.end()
+        return QIcon(pix)
+
+    def _remove_builddir(self):
+        builddir = self._builddir.resolve(strict=False)
+        reply = QMessageBox.warning(
+            self, 'Remove build directory',
+            f'Permanently delete\n{builddir}\n\nThis cannot be undone. Continue?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        try:
+            shutil.rmtree(builddir)
+        except OSError as e:
+            QMessageBox.critical(self, 'Error', f'Failed to remove build directory:\n{e}')
+            return
+        source_dir = self._source_dir
+        self._builddir = None
+        self._source_dir = None
+        if self._project_dir is None and source_dir:
+            self._project_dir = source_dir
+        self._setup_panel.set_project_dir(self._project_dir or source_dir, force=True)
+        self.setWindowTitle('mesonfe')
+        self._status_label.setText('No build directory')
+        self._open_terminal_action.setEnabled(False)
+        self._wipe_action.setEnabled(False)
+        self._remove_builddir_action.setEnabled(False)
+        placeholder = QWidget()
+        lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory…')
+        lbl.setAlignment(Qt.AlignCenter)
+        QVBoxLayout(placeholder).addWidget(lbl)
+        self._set_build_options_widget(placeholder)
+        self._set_tabs_enabled(False)
+        self._tabs.setCurrentWidget(self._setup_panel)
 
     def _collect_options_to_save(self) -> dict:
         to_save = {}
