@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (
     QKeySequenceEdit, QAction, QSplitter, QMenu, QTabWidget, QTabBar,
     QTreeWidget, QTreeWidgetItem, QPlainTextEdit,
 )
-from PyQt5.QtCore import Qt, QProcess, QUrl
+from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter
 from platformdirs import user_config_dir
 
@@ -197,7 +197,6 @@ _DEFAULT_OUTPUT_FONT_SIZE = 13
 
 # (config_key, tab_label, default_visible)
 _OPTIONAL_TABS = [
-    ('tab_build_files', 'Build Files',  False),
     ('tab_compile',     'Compile',      True),
     ('tab_install',     'Install',      True),
     ('tab_dist',        'Dist',         True),
@@ -1061,13 +1060,32 @@ class BuildFileViewer(QDialog):
 
 
 class BuildFilesPanel(QWidget):
+    close_requested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._source_path = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(4, 2, 2, 2)
+        header.addWidget(QLabel('Build Files'))
+        header.addStretch()
+        close_btn = QPushButton('✕')
+        close_btn.setFlat(True)
+        close_btn.setFixedSize(16, 16)
+        close_btn.setStyleSheet(
+            'QPushButton { color: #b8960c; border: none; padding: 0; background: transparent; font-size: 11px; }'
+            'QPushButton:hover { color: #d4aa20; }'
+        )
+        close_btn.clicked.connect(self.close_requested)
+        header.addWidget(close_btn)
+        layout.addLayout(header)
+
         self._tree = QTreeWidget()
-        self._tree.setHeaderLabel('Build Files')
+        self._tree.setHeaderHidden(True)
         self._tree.itemDoubleClicked.connect(self._view_file)
         layout.addWidget(self._tree)
 
@@ -1180,6 +1198,7 @@ class MainWindow(QMainWindow):
         self._wipe_action.setEnabled(False)
 
         self._tree_action = QAction('Build Files', self)
+        self._tree_action.setCheckable(True)
         self._tree_action.setToolTip('Show build files tree')
         _tree_icon = QIcon()
         for _p in [
@@ -1193,7 +1212,7 @@ class MainWindow(QMainWindow):
             _tree_icon = QIcon.fromTheme('view-list-tree')
         if not _tree_icon.isNull():
             self._tree_action.setIcon(_tree_icon)
-        self._tree_action.triggered.connect(lambda: self._show_tab('tab_build_files'))
+        self._tree_action.toggled.connect(self._toggle_tree_pane)
 
         tools_menu = self.menuBar().addMenu('Tools')
         tools_menu.addAction(self._open_terminal_action)
@@ -1218,13 +1237,15 @@ class MainWindow(QMainWindow):
         self._subprojects_panel = SubprojectsPanel()
         self._test_panel = TestPanel()
         self._tree_panel = BuildFilesPanel()
+        self._tree_panel.close_requested.connect(
+            lambda: self._tree_action.setChecked(False)
+        )
 
         _settings = load_settings()
         self._output_font_size = _settings.get('output_font_size', _DEFAULT_OUTPUT_FONT_SIZE)
         self._apply_output_font_size()
 
         self._optional_tab_widgets = {
-            'tab_build_files': self._tree_panel,
             'tab_compile':     self._compile_panel,
             'tab_install':     self._install_panel,
             'tab_dist':        self._dist_panel,
@@ -1233,8 +1254,21 @@ class MainWindow(QMainWindow):
         }
 
         _vis = load_tab_visibility()
+        _tree_visible = _settings.get('tree_pane_visible', False)
+        self._tree_action.blockSignals(True)
+        self._tree_action.setChecked(_tree_visible)
+        self._tree_action.blockSignals(False)
+
+        self._main_splitter = QSplitter(Qt.Horizontal)
+        self.setCentralWidget(self._main_splitter)
+        self._main_splitter.addWidget(self._tree_panel)
+        if not _tree_visible:
+            self._tree_panel.hide()
+
         self._tabs = QTabWidget()
-        self.setCentralWidget(self._tabs)
+        self._main_splitter.addWidget(self._tabs)
+        self._main_splitter.setStretchFactor(0, 0)
+        self._main_splitter.setStretchFactor(1, 1)
 
         self._changed_container = QWidget()
         QVBoxLayout(self._changed_container)
@@ -1250,6 +1284,7 @@ class MainWindow(QMainWindow):
         self._tabs.setCurrentIndex(1)
 
         view_menu.addSeparator()
+        view_menu.addAction(self._tree_action)
         self._tab_actions = {}
         for _key, _label, _default in _OPTIONAL_TABS:
             _action = QAction(_label, self)
@@ -1522,11 +1557,17 @@ class MainWindow(QMainWindow):
             json.dumps({k: self._tab_actions[k].isChecked() for k, _, _ in _OPTIONAL_TABS}, indent=2)
         )
 
-    def _show_tab(self, key):
-        if not self._tab_actions[key].isChecked():
-            self._tab_actions[key].setChecked(True)
+    def _toggle_tree_pane(self, visible):
+        if visible:
+            self._tree_panel.show()
+            w = self._main_splitter.width()
+            tree_w = max(150, w * 15 // 100)
+            self._main_splitter.setSizes([tree_w, w - tree_w])
         else:
-            self._tabs.setCurrentWidget(self._optional_tab_widgets[key])
+            self._tree_panel.hide()
+        settings = load_settings()
+        settings['tree_pane_visible'] = visible
+        save_settings(settings)
 
     def _run_wipe(self):
         reply = QMessageBox.question(
