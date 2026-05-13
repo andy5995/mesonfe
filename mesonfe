@@ -12,12 +12,12 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
-    QListWidget, QListWidgetItem, QCheckBox, QDockWidget, QFileDialog, QSpinBox,
-    QKeySequenceEdit, QAction, QSplitter, QMenu, QAbstractButton,
+    QListWidget, QListWidgetItem, QCheckBox, QFileDialog, QSpinBox,
+    QKeySequenceEdit, QAction, QSplitter, QMenu, QTabWidget,
     QTreeWidget, QTreeWidgetItem, QPlainTextEdit,
 )
-from PyQt5.QtCore import Qt, QProcess, QUrl, QEvent, QTimer
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QCursor, QSyntaxHighlighter
+from PyQt5.QtCore import Qt, QProcess, QUrl
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter
 from platformdirs import user_config_dir
 
 try:
@@ -190,6 +190,17 @@ _RECENT_MAX = 10
 _SHORTCUT_PATH  = Path(user_config_dir('mesonfe')) / 'keybindings.json'
 _GEOMETRY_PATH  = Path(user_config_dir('mesonfe')) / 'windowgeometry.bin'
 _STATE_PATH     = Path(user_config_dir('mesonfe')) / 'windowstate.bin'
+_TAB_VIS_PATH   = Path(user_config_dir('mesonfe')) / 'tabvisibility.json'
+
+# (config_key, tab_label, default_visible)
+_OPTIONAL_TABS = [
+    ('tab_build_files', 'Build Files',  False),
+    ('tab_compile',     'Compile',      True),
+    ('tab_install',     'Install',      True),
+    ('tab_dist',        'Dist',         True),
+    ('tab_subprojects', 'Subprojects',  True),
+    ('tab_tests',       'Tests',        True),
+]
 
 _DEFAULT_SHORTCUTS = {
     'file_open':         ('Open Build Directory…',   'Ctrl+O'),
@@ -197,24 +208,12 @@ _DEFAULT_SHORTCUTS = {
     'file_quit':         ('Quit',                    'Ctrl+Q'),
     'build_save':        ('Save options to .mesonferc', 'Ctrl+S'),
     'build_setup':       ('Setup from .mesonferc',   'Ctrl+Shift+S'),
-    'meson_compile':     ('Compile…',                'Ctrl+B'),
-    'meson_install':     ('Install…',                'Ctrl+I'),
-    'meson_dist':        ('Dist…',                   'Ctrl+D'),
     'meson_wipe':        ('Wipe…',                   ''),
-    'meson_subprojects': ('Subprojects…',             'Ctrl+U'),
-    'tests_display':     ('Display Tests…',          'Ctrl+T'),
     'help_about':        ('About',                   'F1'),
     'help_keybindings':  ('Configure Keybindings…',  'Ctrl+,'),
     'help_meson_docs':   ('Meson Documentation',     ''),
     'tools_open_terminal': ('Open Terminal…',         'Ctrl+Alt+T'),
     'view_toolbar':        ('Show Toolbar',           ''),
-    'panels_build_options': ('Build Options Panel',    ''),
-    'panels_tree':         ('Build Files Panel',      ''),
-    'panels_compile':      ('Compile Panel',          ''),
-    'panels_install':      ('Install Panel',          ''),
-    'panels_dist':         ('Dist Panel',             ''),
-    'panels_subprojects':  ('Subprojects Panel',      ''),
-    'panels_test':         ('Test Panel',             ''),
 }
 
 
@@ -228,6 +227,11 @@ def load_shortcuts() -> dict:
 def save_shortcuts(shortcuts: dict):
     _SHORTCUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     _SHORTCUT_PATH.write_text(json.dumps(shortcuts, indent=2))
+
+
+def load_tab_visibility() -> dict:
+    data = read_json(_TAB_VIS_PATH)
+    return data if isinstance(data, dict) else {}
 
 
 def load_recent_dirs() -> list:
@@ -860,120 +864,6 @@ class TestPanel(QWidget):
         super().closeEvent(event)
 
 
-def _set_dock_tooltips(dock):
-    for btn in dock.findChildren(QAbstractButton):
-        name = btn.objectName()
-        if name == 'qt_dockwidget_floatbutton':
-            btn.setToolTip('Float / dock panel')
-        elif name == 'qt_dockwidget_closebutton':
-            btn.setToolTip('Hide panel')
-
-
-class PanelDock(QDockWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._resizing = False
-        self._resize_edges = None
-        self._resize_start_pos = None
-        self._resize_start_geom = None
-        self._context_menu_pos = None
-        self._resize_timer = QTimer(self)
-        self._resize_timer.setInterval(16)
-        self._resize_timer.timeout.connect(self._poll_resize)
-
-    def contextMenuEvent(self, event):
-        if not self.isFloating():
-            return
-        self._context_menu_pos = self.mapFromGlobal(event.globalPos())
-        menu = QMenu(self)
-        menu.addAction('Resize').triggered.connect(self._begin_resize)
-        menu.exec_(event.globalPos())
-
-    def _begin_resize(self):
-        # Edge is based on where the user right-clicked, not where the menu closed
-        pos = self._context_menu_pos or self.rect().center()
-        self._resize_edges = self._edges_for_pos(pos)
-        self._resize_start_pos = QCursor.pos()
-        self._resize_start_geom = self.geometry()
-        self._resizing = True
-        QApplication.instance().installEventFilter(self)
-        QApplication.setOverrideCursor(self._cursor_for_pos(pos))
-        self._resize_timer.start()
-
-    def _cancel_resize(self):
-        self._resize_timer.stop()
-        self._resizing = False
-        QApplication.instance().removeEventFilter(self)
-        QApplication.restoreOverrideCursor()
-
-    def _poll_resize(self):
-        if self._resizing:
-            self._apply_resize(QCursor.pos() - self._resize_start_pos)
-
-    def eventFilter(self, obj, event):
-        if not self._resizing:
-            return super().eventFilter(obj, event)
-        t = event.type()
-        if t == QEvent.MouseButtonPress:
-            self._cancel_resize()
-            return True
-        if t == QEvent.MouseButtonRelease:
-            return True
-        if t == QEvent.KeyPress:
-            k = event.key()
-            step = 10
-            if k == Qt.Key_Escape:
-                self.setGeometry(self._resize_start_geom)
-                self._cancel_resize()
-                return True
-            if k in (Qt.Key_Return, Qt.Key_Enter):
-                self._cancel_resize()
-                return True
-            if k == Qt.Key_Right:
-                self.resize(self.width() + step, self.height())
-                return True
-            if k == Qt.Key_Left:
-                self.resize(max(100, self.width() - step), self.height())
-                return True
-            if k == Qt.Key_Down:
-                self.resize(self.width(), self.height() + step)
-                return True
-            if k == Qt.Key_Up:
-                self.resize(self.width(), max(100, self.height() - step))
-                return True
-        return super().eventFilter(obj, event)
-
-    def _apply_resize(self, delta):
-        g = self._resize_start_geom
-        edges = self._resize_edges
-        x, y, w, h = g.x(), g.y(), g.width(), g.height()
-        if edges & Qt.RightEdge:
-            w = max(100, g.width() + delta.x())
-        if edges & Qt.BottomEdge:
-            h = max(100, g.height() + delta.y())
-        if edges & Qt.LeftEdge:
-            new_w = max(100, g.width() - delta.x())
-            x = g.x() + g.width() - new_w
-            w = new_w
-        if edges & Qt.TopEdge:
-            new_h = max(100, g.height() - delta.y())
-            y = g.y() + g.height() - new_h
-            h = new_h
-        self.setGeometry(x, y, w, h)
-
-    def _edges_for_pos(self, pos):
-        # Always return a corner so movement in any direction resizes
-        h_edge = Qt.RightEdge if pos.x() >= self.width() / 2 else Qt.LeftEdge
-        v_edge = Qt.BottomEdge if pos.y() >= self.height() / 2 else Qt.TopEdge
-        return h_edge | v_edge
-
-    def _cursor_for_pos(self, pos):
-        right_half = pos.x() >= self.width() / 2
-        bottom_half = pos.y() >= self.height() / 2
-        if right_half == bottom_half:   # top-left or bottom-right corner
-            return Qt.SizeFDiagCursor
-        return Qt.SizeBDiagCursor
-
 
 class ValueWidget(QWidget):
     def __init__(self, opt: dict):
@@ -1244,23 +1134,6 @@ class MainWindow(QMainWindow):
         self._setup_rc_action.triggered.connect(self._setup_from_mesonferc)
         self._setup_rc_action.setEnabled(False)
 
-        meson_menu = self.menuBar().addMenu('Meson')
-        self._compile_action = meson_menu.addAction('Compile…')
-        self._compile_action.triggered.connect(self._run_compile)
-        self._compile_action.setEnabled(False)
-        self._install_action = meson_menu.addAction('Install…')
-        self._install_action.triggered.connect(self._run_install)
-        self._install_action.setEnabled(False)
-        self._dist_action = meson_menu.addAction('Dist…')
-        self._dist_action.triggered.connect(self._run_dist)
-        self._dist_action.setEnabled(False)
-        self._subprojects_update_action = meson_menu.addAction('Subprojects…')
-        self._subprojects_update_action.triggered.connect(self._run_subprojects_update)
-        self._subprojects_update_action.setEnabled(False)
-
-        self._run_tests_action = self.menuBar().addMenu('Tests').addAction('Display Tests…')
-        self._run_tests_action.triggered.connect(self._select_and_run_tests)
-        self._run_tests_action.setEnabled(False)
 
         self._open_terminal_action = QAction('Open Terminal…', self)
         self._open_terminal_action.setToolTip('Open the build directory in a terminal')
@@ -1286,7 +1159,6 @@ class MainWindow(QMainWindow):
 
         self._tree_action = QAction('Build Files', self)
         self._tree_action.setToolTip('Show build files tree')
-        self._tree_action.setCheckable(True)
         _tree_icon = QIcon()
         for _p in [
             Path(__file__).parent / 'data' / 'tree.svg',
@@ -1299,7 +1171,7 @@ class MainWindow(QMainWindow):
             _tree_icon = QIcon.fromTheme('view-list-tree')
         if not _tree_icon.isNull():
             self._tree_action.setIcon(_tree_icon)
-        self._tree_action.triggered.connect(self._toggle_tree_dock)
+        self._tree_action.triggered.connect(lambda: self._show_tab('tab_build_files'))
 
         tools_menu = self.menuBar().addMenu('Tools')
         tools_menu.addAction(self._open_terminal_action)
@@ -1318,100 +1190,46 @@ class MainWindow(QMainWindow):
         self._toolbar_view_action.setText('Show Toolbar')
         view_menu.addAction(self._toolbar_view_action)
 
-        self._changed_dock = QDockWidget('Changed from defaults', self)
-        self._changed_dock.setObjectName('changed_dock')
-        self._changed_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
-        self._changed_dock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
-        self._changed_dock.topLevelChanged.connect(self._on_changed_dock_float)
-        self.addDockWidget(Qt.TopDockWidgetArea, self._changed_dock)
-        self._changed_dock.hide()
-
         self._compile_panel = CompilePanel()
-        self._compile_dock = PanelDock('Compile', self)
-        self._compile_dock.setObjectName('compile_dock')
-        self._compile_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
-        self._compile_dock.setWidget(self._compile_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, self._compile_dock)
-        self._compile_dock.hide()
-
         self._install_panel = InstallPanel()
-        self._install_dock = PanelDock('Install', self)
-        self._install_dock.setObjectName('install_dock')
-        self._install_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
-        self._install_dock.setWidget(self._install_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, self._install_dock)
-        self._install_dock.hide()
-
         self._dist_panel = DistPanel()
-        self._dist_dock = PanelDock('Dist', self)
-        self._dist_dock.setObjectName('dist_dock')
-        self._dist_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
-        self._dist_dock.setWidget(self._dist_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, self._dist_dock)
-        self._dist_dock.hide()
-
         self._subprojects_panel = SubprojectsPanel()
-        self._subprojects_dock = PanelDock('Subprojects', self)
-        self._subprojects_dock.setObjectName('subprojects_dock')
-        self._subprojects_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
-        self._subprojects_dock.setWidget(self._subprojects_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, self._subprojects_dock)
-        self._subprojects_dock.hide()
-
         self._test_panel = TestPanel()
-        self._test_dock = PanelDock('Tests', self)
-        self._test_dock.setObjectName('test_dock')
-        self._test_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
-        self._test_dock.setWidget(self._test_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, self._test_dock)
-        self._test_dock.hide()
-
-        self._build_options_dock = PanelDock('Build Options', self)
-        self._build_options_dock.setObjectName('build_options_dock')
-        self._build_options_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self._build_options_dock)
-
         self._tree_panel = BuildFilesPanel()
-        self._tree_dock = PanelDock('Build Files', self)
-        self._tree_dock.setObjectName('tree_dock')
-        self._tree_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
-        self._tree_dock.setWidget(self._tree_panel)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self._tree_dock)
-        self._tree_dock.hide()
-        self.tabifyDockWidget(self._build_options_dock, self._tree_dock)
-        self._tree_dock.visibilityChanged.connect(self._tree_action.setChecked)
 
-        self.tabifyDockWidget(self._compile_dock, self._install_dock)
-        self.tabifyDockWidget(self._install_dock, self._dist_dock)
-        self.tabifyDockWidget(self._dist_dock, self._subprojects_dock)
-        self.tabifyDockWidget(self._subprojects_dock, self._test_dock)
+        self._optional_tab_widgets = {
+            'tab_build_files': self._tree_panel,
+            'tab_compile':     self._compile_panel,
+            'tab_install':     self._install_panel,
+            'tab_dist':        self._dist_panel,
+            'tab_subprojects': self._subprojects_panel,
+            'tab_tests':       self._test_panel,
+        }
 
-        _panel_style = (
-            'QDockWidget {'
-            '  border-top: 4px solid #8ec6f0;'
-            '  border-left: 4px solid #8ec6f0;'
-            '  border-bottom: 4px solid #2a5a8a;'
-            '  border-right: 4px solid #2a5a8a;'
-            '}'
-        )
-        for _dock in (self._build_options_dock, self._tree_dock, self._compile_dock,
-                      self._install_dock, self._dist_dock, self._subprojects_dock, self._test_dock):
-            _dock.setStyleSheet(_panel_style)
+        _vis = load_tab_visibility()
+        self._tabs = QTabWidget()
+        self.setCentralWidget(self._tabs)
 
-        for _dock in (self._changed_dock, self._build_options_dock, self._tree_dock,
-                      self._compile_dock, self._install_dock, self._dist_dock,
-                      self._subprojects_dock, self._test_dock):
-            _set_dock_tooltips(_dock)
+        self._changed_container = QWidget()
+        QVBoxLayout(self._changed_container)
+        self._tabs.addTab(self._changed_container, 'Changed from defaults')
+        self._tabs.addTab(QWidget(), 'Build Options')  # replaced in _rebuild
+        for _key, _label, _default in _OPTIONAL_TABS:
+            if _vis.get(_key, _default):
+                self._tabs.addTab(self._optional_tab_widgets[_key], _label)
+        self._tabs.setCurrentIndex(1)
 
-        panels_menu = self.menuBar().addMenu('Panels')
-        panels_menu.addAction(self._build_options_dock.toggleViewAction())
-        panels_menu.addAction(self._tree_dock.toggleViewAction())
-        panels_menu.addSeparator()
-        panels_menu.addAction(self._compile_dock.toggleViewAction())
-        panels_menu.addAction(self._install_dock.toggleViewAction())
-        panels_menu.addAction(self._dist_dock.toggleViewAction())
-        panels_menu.addAction(self._subprojects_dock.toggleViewAction())
-        panels_menu.addAction(self._test_dock.toggleViewAction())
+        view_menu.addSeparator()
+        self._tab_actions = {}
+        for _key, _label, _default in _OPTIONAL_TABS:
+            _action = QAction(_label, self)
+            _action.setCheckable(True)
+            _action.setChecked(_vis.get(_key, _default))
+            _action.toggled.connect(
+                lambda checked, k=_key, l=_label: self._toggle_tab(k, l, checked)
+            )
+            view_menu.addAction(_action)
+            self._tab_actions[_key] = _action
 
         help_menu = self.menuBar().addMenu('Help')
         self._about_action = help_menu.addAction('About')
@@ -1429,33 +1247,17 @@ class MainWindow(QMainWindow):
             'file_quit':         ('Quit',                  self._quit_action),
             'build_save':        ('Save options to .mesonferc', self._save_rc_action),
             'build_setup':       ('Setup from .mesonferc',  self._setup_rc_action),
-            'meson_compile':     ('Compile…',               self._compile_action),
-            'meson_install':     ('Install…',               self._install_action),
-            'meson_dist':        ('Dist…',                  self._dist_action),
             'meson_wipe':        ('Wipe…',                  self._wipe_action),
-            'meson_subprojects': ('Update Subprojects…',    self._subprojects_update_action),
-            'tests_display':     ('Display Tests…',                   self._run_tests_action),
             'help_about':        ('About',                            self._about_action),
             'help_keybindings':  ('Configure Keybindings…',           self._keybindings_action),
             'help_meson_docs':   ('Meson Documentation',              self._meson_docs_action),
             'tools_open_terminal': ('Open Terminal…',                 self._open_terminal_action),
             'view_toolbar':        ('Show Toolbar',                   self._toolbar_view_action),
-            'panels_build_options': ('Build Options Panel',            self._build_options_dock.toggleViewAction()),
-            'panels_tree':         ('Build Files Panel',              self._tree_dock.toggleViewAction()),
-            'panels_compile':      ('Compile Panel',                  self._compile_dock.toggleViewAction()),
-            'panels_install':      ('Install Panel',                  self._install_dock.toggleViewAction()),
-            'panels_dist':         ('Dist Panel',                     self._dist_dock.toggleViewAction()),
-            'panels_subprojects':  ('Subprojects Panel',              self._subprojects_dock.toggleViewAction()),
-            'panels_test':         ('Test Panel',                     self._test_dock.toggleViewAction()),
         }
         self._apply_shortcuts(load_shortcuts())
 
         self._status_label = QLabel()
         self.statusBar().addPermanentWidget(self._status_label)
-
-        _empty = QWidget()
-        _empty.setMaximumSize(0, 0)
-        self.setCentralWidget(_empty)
 
         if builddir is not None:
             self._rebuild()
@@ -1464,7 +1266,7 @@ class MainWindow(QMainWindow):
             lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory…')
             lbl.setAlignment(Qt.AlignCenter)
             QVBoxLayout(placeholder).addWidget(lbl)
-            self._build_options_dock.setWidget(placeholder)
+            self._set_build_options_widget(placeholder)
             self._status_label.setText('No build directory')
 
         self._restore_window_state()
@@ -1472,13 +1274,10 @@ class MainWindow(QMainWindow):
     def _restore_window_state(self):
         if _GEOMETRY_PATH.exists():
             self.restoreGeometry(_GEOMETRY_PATH.read_bytes())
-        if _STATE_PATH.exists():
-            self.restoreState(_STATE_PATH.read_bytes())
 
     def closeEvent(self, event):
         _GEOMETRY_PATH.parent.mkdir(parents=True, exist_ok=True)
         _GEOMETRY_PATH.write_bytes(bytes(self.saveGeometry()))
-        _STATE_PATH.write_bytes(bytes(self.saveState()))
         super().closeEvent(event)
 
     def _rebuild(self):
@@ -1495,7 +1294,6 @@ class MainWindow(QMainWindow):
         defaults = parse_defaults(source_dir) if source_dir else {}
 
         root_w = QWidget()
-        self._build_options_dock.setWidget(root_w)
         layout = QVBoxLayout(root_w)
         layout.setSpacing(6)
 
@@ -1519,6 +1317,12 @@ class MainWindow(QMainWindow):
             bool(source_dir and (source_dir / '.mesonferc').exists())
         )
 
+        lay = self._changed_container.layout()
+        while lay.count():
+            item = lay.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
         if changed:
             tbl = QTableWidget(len(changed), 3)
             tbl.setHorizontalHeaderLabels(['Option', 'Current value', 'Default'])
@@ -1531,15 +1335,14 @@ class MainWindow(QMainWindow):
                 cur.setForeground(QColor('#ff6b6b'))
                 tbl.setItem(r, 1, cur)
                 tbl.setItem(r, 2, QTableWidgetItem('—' if dflt is None else str(dflt)))
-            row_h = tbl.verticalHeader().defaultSectionSize()
-            header_h = tbl.horizontalHeader().sizeHint().height()
-            self._changed_max_h = 4 * row_h + header_h
-            tbl.setMaximumHeight(self._changed_max_h)
             tbl.cellClicked.connect(self._jump_to_option)
-            self._changed_dock.setWidget(tbl)
-            self._changed_dock.show()
+            self._changed_tbl = tbl
+            lay.addWidget(tbl)
         else:
-            self._changed_dock.hide()
+            self._changed_tbl = None
+            lbl = QLabel('No options differ from defaults.')
+            lbl.setAlignment(Qt.AlignCenter)
+            lay.addWidget(lbl)
 
         # Build test items for the menu action
         suites = find_test_suites(self._builddir)
@@ -1551,11 +1354,6 @@ class MainWindow(QMainWindow):
                 self._test_items.append((f'Setup: {name}', ['--setup', name]))
         else:
             self._test_items = []
-        self._run_tests_action.setEnabled(bool(self._test_items))
-        self._compile_action.setEnabled(True)
-        self._install_action.setEnabled(True)
-        self._dist_action.setEnabled(True)
-        self._subprojects_update_action.setEnabled(bool(source_dir))
         self._open_terminal_action.setEnabled(True)
         self._wipe_action.setEnabled(True)
 
@@ -1604,6 +1402,14 @@ class MainWindow(QMainWindow):
         gl.addWidget(apply_btn, alignment=Qt.AlignRight)
 
         layout.addWidget(grp, 1)
+        self._set_build_options_widget(root_w)
+
+    def _set_build_options_widget(self, w):
+        old = self._tabs.widget(1)
+        self._tabs.removeTab(1)
+        self._tabs.insertTab(1, w, 'Build Options')
+        if old is not None and old is not w:
+            old.deleteLater()
 
     def _do_filter(self, text: str):
         text = text.lower()
@@ -1612,9 +1418,31 @@ class MainWindow(QMainWindow):
             desc = self._tbl.item(r, 3).text().lower()
             self._tbl.setRowHidden(r, bool(text) and text not in name and text not in desc)
 
-    def _show_panel(self, dock):
-        dock.show()
-        dock.raise_()
+    def _toggle_tab(self, key, label, visible):
+        widget = self._optional_tab_widgets[key]
+        if visible:
+            pos = 2
+            for k, _, _ in _OPTIONAL_TABS:
+                if k == key:
+                    break
+                if self._tab_actions[k].isChecked():
+                    pos += 1
+            self._tabs.insertTab(pos, widget, label)
+            self._tabs.setCurrentWidget(widget)
+        else:
+            idx = self._tabs.indexOf(widget)
+            if idx >= 0:
+                self._tabs.removeTab(idx)
+        _TAB_VIS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _TAB_VIS_PATH.write_text(
+            json.dumps({k: self._tab_actions[k].isChecked() for k, _, _ in _OPTIONAL_TABS}, indent=2)
+        )
+
+    def _show_tab(self, key):
+        if not self._tab_actions[key].isChecked():
+            self._tab_actions[key].setChecked(True)
+        else:
+            self._tabs.setCurrentWidget(self._optional_tab_widgets[key])
 
     def _run_wipe(self):
         reply = QMessageBox.question(
@@ -1629,21 +1457,6 @@ class MainWindow(QMainWindow):
         dlg.exec_()
         if _is_build_dir(self._builddir):
             self._load_builddir(self._builddir)
-
-    def _run_compile(self):
-        self._show_panel(self._compile_dock)
-
-    def _run_install(self):
-        self._show_panel(self._install_dock)
-
-    def _run_dist(self):
-        self._show_panel(self._dist_dock)
-
-    def _run_subprojects_update(self):
-        self._show_panel(self._subprojects_dock)
-
-    def _select_and_run_tests(self):
-        self._show_panel(self._test_dock)
 
     def _collect_options_to_save(self) -> dict:
         to_save = {}
@@ -1773,21 +1586,16 @@ class MainWindow(QMainWindow):
         self._refresh_recent_menu()
 
     def _jump_to_option(self, row, _col):
-        name = self._changed_dock.widget().item(row, 0).text()
+        if self._changed_tbl is None:
+            return
+        name = self._changed_tbl.item(row, 0).text()
+        self._tabs.setCurrentIndex(1)  # Build Options is always at index 1
         for r in range(self._tbl.rowCount()):
             item = self._tbl.item(r, 0)
             if item and item.text() == name:
                 self._tbl.scrollToItem(item)
                 self._tbl.selectRow(r)
                 break
-
-    def _on_changed_dock_float(self, floating):
-        tbl = self._changed_dock.widget()
-        if tbl:
-            tbl.setMaximumHeight(16777215 if floating else self._changed_max_h)
-        self._changed_dock.setStyleSheet(
-            'QDockWidget { border-top: 4px solid #8ec6f0; border-left: 4px solid #8ec6f0; border-bottom: 4px solid #2a5a8a; border-right: 4px solid #2a5a8a; }' if floating else ''
-        )
 
     def _apply_shortcuts(self, overrides: dict):
         for action_id, (_name, action) in self._action_map.items():
@@ -1812,13 +1620,6 @@ class MainWindow(QMainWindow):
             '<i>Disclaimer: This project is not affiliated with or endorsed by the '
             '<a href="https://mesonbuild.com/">Meson project</a> or its developers.</i>',
         )
-
-    def _toggle_tree_dock(self, checked):
-        if checked:
-            self._tree_dock.show()
-            self._tree_dock.raise_()
-        else:
-            self._tree_dock.hide()
 
     def _open_terminal(self):
         if not self._builddir:
