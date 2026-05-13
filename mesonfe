@@ -1518,6 +1518,11 @@ class MainWindow(QMainWindow):
         form.addWidget(spin)
         layout.addLayout(form)
 
+        reopen_chk = QCheckBox('Reopen last build directory on startup')
+        _settings = load_settings()
+        reopen_chk.setChecked(_settings.get('reopen_last', False))
+        layout.addWidget(reopen_chk)
+
         kb_btn = QPushButton('Keybindings…')
         kb_btn.clicked.connect(lambda: self._open_keybindings(dlg))
         layout.addWidget(kb_btn, alignment=Qt.AlignLeft)
@@ -1535,13 +1540,13 @@ class MainWindow(QMainWindow):
 
         if dlg.exec_() != QDialog.Accepted:
             return
-        size = spin.value()
-        if size == self._output_font_size:
-            return
-        self._output_font_size = size
-        self._apply_output_font_size()
         settings = load_settings()
-        settings['output_font_size'] = size
+        size = spin.value()
+        if size != self._output_font_size:
+            self._output_font_size = size
+            self._apply_output_font_size()
+            settings['output_font_size'] = size
+        settings['reopen_last'] = reopen_chk.isChecked()
         save_settings(settings)
 
     def _open_keybindings(self, parent=None):
@@ -1927,6 +1932,10 @@ def main():
     if not icon.isNull():
         app.setWindowIcon(icon)
     builddir = find_builddir()
+    if builddir is None and load_settings().get('reopen_last', False):
+        recent = load_recent_dirs()
+        if recent:
+            builddir = Path(recent[0])
     win = MainWindow(builddir)
     win.show()
     sys.exit(app.exec_())
