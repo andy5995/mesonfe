@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
     QListWidget, QListWidgetItem, QCheckBox, QFileDialog, QSpinBox,
@@ -207,6 +207,7 @@ _OPTIONAL_TABS = [
 
 _DEFAULT_SHORTCUTS = {
     'file_open':           'Ctrl+O',
+    'file_open_project':   '',
     'file_setup_rc':       '',
     'file_quit':           'Ctrl+Q',
     'build_save':          'Ctrl+S',
@@ -1147,10 +1148,106 @@ class BuildFilesPanel(QWidget):
             dlg = BuildFileViewer(path, self._source_path, self)
             dlg.exec_()
 
+class SetupPanel(QWidget):
+    setup_done = pyqtSignal(str)  # emits absolute build dir path on success
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._src_dir = None
+        layout = QVBoxLayout(self)
+
+        form = QFormLayout()
+
+        src_row = QHBoxLayout()
+        self._src_edit = QLineEdit()
+        self._src_edit.setPlaceholderText('Project source directory')
+        src_browse = QPushButton('Browse…')
+        src_browse.clicked.connect(self._browse_src)
+        src_row.addWidget(self._src_edit)
+        src_row.addWidget(src_browse)
+        form.addRow('Source directory:', src_row)
+
+        bld_row = QHBoxLayout()
+        self._bld_edit = QLineEdit()
+        self._bld_edit.setText('_build')
+        bld_browse = QPushButton('Browse…')
+        bld_browse.clicked.connect(self._browse_bld)
+        bld_row.addWidget(self._bld_edit)
+        bld_row.addWidget(bld_browse)
+        form.addRow('Build directory:', bld_row)
+
+        self._args_edit = QLineEdit()
+        self._args_edit.setPlaceholderText('e.g. -Dprefix=/usr -Dbuildtype=release')
+        form.addRow('Extra args:', self._args_edit)
+
+        layout.addLayout(form)
+
+        self._run_btn = QPushButton('Run meson setup')
+        self._run_btn.clicked.connect(self._run)
+        layout.addWidget(self._run_btn, alignment=Qt.AlignLeft)
+
+        self._out = QTextEdit()
+        self._out.setReadOnly(True)
+        layout.addWidget(self._out)
+
+        self._proc = QProcess(self)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyRead.connect(
+            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
+        )
+        self._proc.finished.connect(self._on_finished)
+        self._line_buf = ['']
+
+    def set_project_dir(self, path, force: bool = False):
+        if path:
+            self._src_dir = str(path)
+            if force or not self._src_edit.text():
+                self._src_edit.setText(self._src_dir)
+
+    def _browse_src(self):
+        start = self._src_edit.text() or ''
+        path = QFileDialog.getExistingDirectory(self, 'Select Source Directory', start)
+        if path:
+            self._src_edit.setText(path)
+
+    def _browse_bld(self):
+        start = self._src_edit.text() or ''
+        path = QFileDialog.getExistingDirectory(self, 'Select Build Directory', start)
+        if path:
+            self._bld_edit.setText(path)
+
+    def _run(self):
+        src = self._src_edit.text().strip()
+        bld = self._bld_edit.text().strip()
+        if not src or not bld:
+            QMessageBox.warning(self.window(), 'Missing fields',
+                                'Source and build directories are required.')
+            return
+        args = ['setup', bld] + self._args_edit.text().split()
+        self._out.clear()
+        self._line_buf = ['']
+        self._run_btn.setEnabled(False)
+        self._proc.setWorkingDirectory(src)
+        self._proc.start('meson', args)
+
+    def _append(self, text: str):
+        _append_highlighted(self._out, text, self._line_buf)
+
+    def _on_finished(self, code: int, _status):
+        self._append(f'\n[exited {code}]\n')
+        self._run_btn.setEnabled(True)
+        if code == 0:
+            src = self._src_edit.text().strip()
+            bld = self._bld_edit.text().strip()
+            bld_path = Path(bld) if Path(bld).is_absolute() else Path(src) / bld
+            self.setup_done.emit(str(bld_path.resolve(strict=False)))
+
+
 class MainWindow(QMainWindow):
     def __init__(self, builddir):
         super().__init__()
         self._builddir = builddir
+        self._project_dir = None
         self._test_items = []
         self._source_dir = None
         self._changed = []
@@ -1161,6 +1258,9 @@ class MainWindow(QMainWindow):
         file_menu = self.menuBar().addMenu('File')
         self._open_action = file_menu.addAction('Open Build Directory…')
         self._open_action.triggered.connect(self._open_build_dir)
+        self._open_project_action = file_menu.addAction('Open Project Directory…')
+        self._open_project_action.triggered.connect(self._open_project_dir)
+        file_menu.addSeparator()
         self._recent_menu = file_menu.addMenu('Recently Opened')
         file_menu.addSeparator()
         self._setup_rc_file_action = file_menu.addAction('Setup from .mesonferc…')
@@ -1244,6 +1344,8 @@ class MainWindow(QMainWindow):
         self._dist_panel = DistPanel()
         self._subprojects_panel = SubprojectsPanel()
         self._test_panel = TestPanel()
+        self._setup_panel = SetupPanel()
+        self._setup_panel.setup_done.connect(self._on_setup_done)
         self._tree_panel = BuildFilesPanel()
         self._tree_panel.close_requested.connect(
             lambda: self._tree_action.setChecked(False)
@@ -1282,6 +1384,7 @@ class MainWindow(QMainWindow):
         QVBoxLayout(self._changed_container)
         self._tabs.addTab(self._changed_container, 'Changed from defaults')
         self._tabs.addTab(QWidget(), 'Build Options')  # replaced in _rebuild
+        self._tabs.addTab(self._setup_panel, 'Setup')
         for _key, _label, _default in _OPTIONAL_TABS:
             if _vis.get(_key, _default):
                 self._tabs.addTab(self._optional_tab_widgets[_key], _label)
@@ -1314,6 +1417,7 @@ class MainWindow(QMainWindow):
 
         self._action_map = {
             'file_open':         ('Open Build Directory…', self._open_action),
+            'file_open_project': ('Open Project Directory…', self._open_project_action),
             'file_setup_rc':     ('Setup from .mesonferc…', self._setup_rc_file_action),
             'file_quit':         ('Quit',                  self._quit_action),
             'build_save':        ('Save options to .mesonferc', self._save_rc_action),
@@ -1358,6 +1462,13 @@ class MainWindow(QMainWindow):
             idx = self._tabs.indexOf(widget)
             if idx >= 0:
                 self._tabs.setTabEnabled(idx, enabled)
+        self._update_setup_tab_state()
+
+    def _update_setup_tab_state(self):
+        enabled = self._builddir is not None or self._project_dir is not None
+        idx = self._tabs.indexOf(self._setup_panel)
+        if idx >= 0:
+            self._tabs.setTabEnabled(idx, enabled)
 
     def _rebuild(self):
         self._set_tabs_enabled(True)
@@ -1368,6 +1479,7 @@ class MainWindow(QMainWindow):
         self._options = options
         self._setups = setups
         self._source_dir = source_dir
+        self._setup_panel.set_project_dir(source_dir)
         title = f'Meson Options — {project_name}' if project_name else f'Meson Options — {self._builddir.resolve(strict=False).name}'
         self.setWindowTitle(title)
         self._status_label.setText(self._builddir.resolve(strict=False).name)
@@ -1501,7 +1613,7 @@ class MainWindow(QMainWindow):
     def _apply_output_font_size(self):
         font = QFont('monospace', self._output_font_size)
         for panel in (self._compile_panel, self._install_panel, self._dist_panel,
-                      self._subprojects_panel, self._test_panel):
+                      self._subprojects_panel, self._test_panel, self._setup_panel):
             for w in panel.findChildren(QTextEdit):
                 w.setFont(font)
 
@@ -1728,6 +1840,18 @@ class MainWindow(QMainWindow):
         path = QFileDialog.getExistingDirectory(self, 'Select Build Directory')
         if path:
             self._load_builddir(Path(path))
+
+    def _open_project_dir(self):
+        path = QFileDialog.getExistingDirectory(self, 'Select Project Directory')
+        if not path:
+            return
+        self._project_dir = Path(path)
+        self._setup_panel.set_project_dir(self._project_dir, force=True)
+        self._update_setup_tab_state()
+        self._tabs.setCurrentWidget(self._setup_panel)
+
+    def _on_setup_done(self, bld_path: str):
+        self._load_builddir(Path(bld_path))
 
     def _load_builddir(self, builddir: Path):
         if not _is_build_dir(builddir):
