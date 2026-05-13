@@ -42,8 +42,20 @@ default_builddir = _build
 
 [options]
 # buildtype = debugoptimized
+
+[config:debug]
+builddir = _build-debug
+# buildtype = debug
+
+[config:release]
+builddir = _build-release
+# buildtype = release
 # prefix = /usr
 ```
+
+Named configurations appear in the Setup tab's **Configuration** combo. Selecting
+one fills in the build directory and merges base `[options]` with the config's
+own options.
 
 ## Running without installing
 

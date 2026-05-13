@@ -145,6 +145,50 @@ def parse_cmd_line(builddir: Path) -> set:
     return names
 
 
+def load_mesonferc(rc_path: Path) -> dict:
+    """Parse .mesonferc into a structured dict.
+
+    Returns:
+        {
+            'default_builddir': str | None,
+            'options': dict,                         # base [options] section
+            'configs': {name: {'builddir': str | None, 'options': dict}},
+        }
+    """
+    result: dict = {'default_builddir': None, 'options': {}, 'configs': {}}
+    if not rc_path.exists():
+        return result
+    section = None
+    config_name = None
+    for raw in rc_path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        if line.startswith('[') and ']' in line:
+            section = line[1:line.index(']')]
+            if section.startswith('config:'):
+                config_name = section[7:].strip()
+                result['configs'].setdefault(config_name, {'builddir': None, 'options': {}})
+            else:
+                config_name = None
+            continue
+        if '=' not in line:
+            continue
+        key, _, val = line.partition('=')
+        key, val = key.strip(), val.strip()
+        if section is None:
+            if key == 'default_builddir':
+                result['default_builddir'] = val.strip('"')
+        elif section == 'options':
+            result['options'][key] = val
+        elif config_name:
+            if key == 'builddir':
+                result['configs'][config_name]['builddir'] = val.strip('"')
+            else:
+                result['configs'][config_name]['options'][key] = val
+    return result
+
+
 def load_mesonferc_options(rc_path: Path) -> dict:
     if not rc_path.exists():
         return {}
@@ -203,9 +247,16 @@ default_builddir = _build
 
 [options]
 # buildtype = debugoptimized
+
+[config:debug]
+builddir = _build-debug
+# buildtype = debug
+# b_sanitize = address
+
+[config:release]
+builddir = _build-release
+# buildtype = release
 # prefix = /usr
-# default_library = shared
-# b_lto = true
 """
 
 _DEFAULT_OUTPUT_FONT_SIZE = 13
@@ -1174,6 +1225,7 @@ class SetupPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._src_dir = None
+        self._rc_data = None
         layout = QVBoxLayout(self)
 
         form = QFormLayout()
@@ -1195,6 +1247,11 @@ class SetupPanel(QWidget):
         bld_row.addWidget(self._bld_edit)
         bld_row.addWidget(bld_browse)
         form.addRow('Build directory:', bld_row)
+
+        self._config_combo = QComboBox()
+        self._config_combo.addItem('(default)')
+        self._config_combo.currentIndexChanged.connect(self._on_config_changed)
+        form.addRow('Configuration:', self._config_combo)
 
         self._args_edit = QLineEdit()
         self._args_edit.setPlaceholderText('e.g. -Dprefix=/usr -Dbuildtype=release')
@@ -1279,17 +1336,30 @@ class SetupPanel(QWidget):
             QMessageBox.information(self.window(), 'Not found',
                                     f'No .mesonferc found in {src}')
             return
-        for line in rc_path.read_text().splitlines():
-            line = line.strip()
-            if line.startswith('#') or '=' not in line:
-                continue
-            key, _, val = line.partition('=')
-            if key.strip() == 'default_builddir':
-                self._bld_edit.setText(val.strip().strip('"'))
-                break
-        opts = load_mesonferc_options(rc_path)
-        if opts:
-            self._args_edit.setText(' '.join(f'-D{k}={v}' for k, v in opts.items()))
+        self._rc_data = load_mesonferc(rc_path)
+        self._config_combo.blockSignals(True)
+        self._config_combo.clear()
+        self._config_combo.addItem('(default)')
+        for name in self._rc_data['configs']:
+            self._config_combo.addItem(name)
+        self._config_combo.blockSignals(False)
+        self._apply_config('(default)')
+
+    def _apply_config(self, name: str):
+        if self._rc_data is None:
+            return
+        if name == '(default)':
+            builddir = self._rc_data['default_builddir'] or '_build'
+            opts = self._rc_data['options']
+        else:
+            cfg = self._rc_data['configs'].get(name, {})
+            builddir = cfg.get('builddir') or self._rc_data['default_builddir'] or '_build'
+            opts = {**self._rc_data['options'], **cfg.get('options', {})}
+        self._bld_edit.setText(builddir)
+        self._args_edit.setText(' '.join(f'-D{k}={v}' for k, v in opts.items()))
+
+    def _on_config_changed(self, index: int):
+        self._apply_config(self._config_combo.itemText(index))
 
     def _open_mesonferc(self):
         src = self._src_edit.text().strip()
