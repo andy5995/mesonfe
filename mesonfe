@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QTableWidget, QTableWidgetItem, QPushButton, QLabel,
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
     QListWidget, QListWidgetItem, QCheckBox, QFileDialog, QSpinBox,
-    QKeySequenceEdit, QAction, QSplitter, QMenu, QTabWidget,
+    QKeySequenceEdit, QAction, QSplitter, QMenu, QTabWidget, QTabBar,
     QTreeWidget, QTreeWidgetItem, QPlainTextEdit,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl
@@ -1243,6 +1243,10 @@ class MainWindow(QMainWindow):
         for _key, _label, _default in _OPTIONAL_TABS:
             if _vis.get(_key, _default):
                 self._tabs.addTab(self._optional_tab_widgets[_key], _label)
+                self._tabs.tabBar().setTabButton(
+                    self._tabs.count() - 1, QTabBar.RightSide,
+                    self._make_close_btn(_key)
+                )
         self._tabs.setCurrentIndex(1)
 
         view_menu.addSeparator()
@@ -1486,6 +1490,17 @@ class MainWindow(QMainWindow):
         settings['output_font_size'] = size
         save_settings(settings)
 
+    def _make_close_btn(self, key):
+        btn = QPushButton('✕')
+        btn.setFlat(True)
+        btn.setFixedSize(16, 16)
+        btn.setStyleSheet(
+            'QPushButton { color: #b8960c; border: none; padding: 0; background: transparent; font-size: 11px; }'
+            'QPushButton:hover { color: #d4aa20; }'
+        )
+        btn.clicked.connect(lambda: self._tab_actions[key].setChecked(False))
+        return btn
+
     def _toggle_tab(self, key, label, visible):
         widget = self._optional_tab_widgets[key]
         if visible:
@@ -1496,6 +1511,7 @@ class MainWindow(QMainWindow):
                 if self._tab_actions[k].isChecked():
                     pos += 1
             self._tabs.insertTab(pos, widget, label)
+            self._tabs.tabBar().setTabButton(pos, QTabBar.RightSide, self._make_close_btn(key))
             self._tabs.setCurrentWidget(widget)
         else:
             idx = self._tabs.indexOf(widget)
