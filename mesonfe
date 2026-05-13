@@ -205,17 +205,17 @@ _OPTIONAL_TABS = [
 ]
 
 _DEFAULT_SHORTCUTS = {
-    'file_open':         ('Open Build Directory…',   'Ctrl+O'),
-    'file_setup_rc':     ('Setup from .mesonferc…',  ''),
-    'file_quit':         ('Quit',                    'Ctrl+Q'),
-    'build_save':        ('Save options to .mesonferc', 'Ctrl+S'),
-    'build_setup':       ('Setup from .mesonferc',   'Ctrl+Shift+S'),
-    'meson_wipe':        ('Wipe…',                   ''),
-    'help_about':        ('About',                   'F1'),
-    'edit_preferences':  ('Preferences…',             'Ctrl+,'),
-    'help_meson_docs':   ('Meson Documentation',     ''),
-    'tools_open_terminal': ('Open Terminal…',         'Ctrl+Alt+T'),
-    'view_toolbar':        ('Show Toolbar',           ''),
+    'file_open':           'Ctrl+O',
+    'file_setup_rc':       '',
+    'file_quit':           'Ctrl+Q',
+    'build_save':          'Ctrl+S',
+    'build_setup':         'Ctrl+Shift+S',
+    'meson_wipe':          '',
+    'help_about':          'F1',
+    'edit_preferences':    'Ctrl+,',
+    'help_meson_docs':     '',
+    'tools_open_terminal': 'Ctrl+Alt+T',
+    'view_toolbar':        '',
 }
 
 
@@ -309,7 +309,7 @@ class KeybindingsDialog(QDialog):
 
     def _reset(self):
         for action_id, editor in self._editors.items():
-            editor.setKeySequence(QKeySequence(_DEFAULT_SHORTCUTS[action_id][1]))
+            editor.setKeySequence(QKeySequence(_DEFAULT_SHORTCUTS[action_id]))
 
     def get_shortcuts(self) -> dict:
         return {aid: self._editors[aid].keySequence().toString()
@@ -1742,7 +1742,7 @@ class MainWindow(QMainWindow):
 
     def _apply_shortcuts(self, overrides: dict):
         for action_id, (_name, action) in self._action_map.items():
-            key = overrides.get(action_id, _DEFAULT_SHORTCUTS[action_id][1])
+            key = overrides.get(action_id, _DEFAULT_SHORTCUTS[action_id])
             action.setShortcut(QKeySequence(key))
 
     def _show_about(self):
