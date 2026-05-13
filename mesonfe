@@ -1333,6 +1333,7 @@ class MainWindow(QMainWindow):
             QVBoxLayout(placeholder).addWidget(lbl)
             self._set_build_options_widget(placeholder)
             self._status_label.setText('No build directory')
+            self._set_tabs_enabled(False)
 
         self._restore_window_state()
 
@@ -1345,7 +1346,15 @@ class MainWindow(QMainWindow):
         _GEOMETRY_PATH.write_bytes(bytes(self.saveGeometry()))
         super().closeEvent(event)
 
+    def _set_tabs_enabled(self, enabled: bool):
+        self._tabs.setTabEnabled(0, enabled)  # Changed from defaults
+        for widget in self._optional_tab_widgets.values():
+            idx = self._tabs.indexOf(widget)
+            if idx >= 0:
+                self._tabs.setTabEnabled(idx, enabled)
+
     def _rebuild(self):
+        self._set_tabs_enabled(True)
         if self._builddir:
             add_recent_dir(self._builddir)
         self._refresh_recent_menu()
