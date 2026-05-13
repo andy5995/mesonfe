@@ -27,6 +27,7 @@ find_test_suites = _mod.find_test_suites
 find_test_setups = _mod.find_test_setups
 load_project_data = _mod.load_project_data
 load_mesonferc_options = _mod.load_mesonferc_options
+load_mesonferc = _mod.load_mesonferc
 save_mesonferc_options = _mod.save_mesonferc_options
 
 
@@ -78,6 +79,7 @@ def test_find_builddir_from_rc_in_parent(tmp_path, monkeypatch):
     child = tmp_path / 'subdir'
     child.mkdir()
     monkeypatch.chdir(child)
+    (tmp_path / 'meson.build').write_text('')
     rc = tmp_path / '.mesonferc'
     rc.write_text('default_builddir = out\n')
     with patch.object(sys, 'argv', ['mesonfe']):
@@ -95,7 +97,7 @@ def test_find_builddir_rc_default_fallback(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / '.mesonferc').write_text('# no builddir key\n')
     with patch.object(sys, 'argv', ['mesonfe']):
-        assert find_builddir() == Path('builddir')
+        assert find_builddir() == Path('_build')
 
 
 def test_find_builddir_no_rc(tmp_path, monkeypatch):
@@ -350,3 +352,73 @@ def test_load_project_data_no_source_dir_key(tmp_path):
     _make_info_dir(tmp_path, meson_info={'directories': {}})
     _, _, src, _ = load_project_data(tmp_path)
     assert src is None
+
+
+# ---------------------------------------------------------------------------
+# load_mesonferc
+# ---------------------------------------------------------------------------
+
+def test_load_mesonferc_missing_file(tmp_path):
+    result = load_mesonferc(tmp_path / '.mesonferc')
+    assert result == {'default_builddir': None, 'options': {}, 'configs': {}}
+
+
+def test_load_mesonferc_default_builddir(tmp_path):
+    rc = tmp_path / '.mesonferc'
+    rc.write_text('default_builddir = _build\n')
+    assert load_mesonferc(rc)['default_builddir'] == '_build'
+
+
+def test_load_mesonferc_quoted_builddir(tmp_path):
+    rc = tmp_path / '.mesonferc'
+    rc.write_text('default_builddir = "_build"\n')
+    assert load_mesonferc(rc)['default_builddir'] == '_build'
+
+
+def test_load_mesonferc_base_options(tmp_path):
+    rc = tmp_path / '.mesonferc'
+    rc.write_text('default_builddir = _build\n\n[options]\nbuildtype = debugoptimized\n')
+    result = load_mesonferc(rc)
+    assert result['options'] == {'buildtype': 'debugoptimized'}
+
+
+def test_load_mesonferc_ignores_comments(tmp_path):
+    rc = tmp_path / '.mesonferc'
+    rc.write_text('[options]\n# buildtype = debug\nbuildtype = release\n')
+    assert load_mesonferc(rc)['options'] == {'buildtype': 'release'}
+
+
+def test_load_mesonferc_named_config(tmp_path):
+    rc = tmp_path / '.mesonferc'
+    rc.write_text(
+        'default_builddir = _build\n\n'
+        '[config:release]\n'
+        'builddir = _build-release\n'
+        'buildtype = release\n'
+    )
+    result = load_mesonferc(rc)
+    assert 'release' in result['configs']
+    assert result['configs']['release']['builddir'] == '_build-release'
+    assert result['configs']['release']['options'] == {'buildtype': 'release'}
+
+
+def test_load_mesonferc_config_inherits_base_options(tmp_path):
+    rc = tmp_path / '.mesonferc'
+    rc.write_text(
+        '[options]\nprefix = /usr\n\n'
+        '[config:debug]\nbuilddir = _build-debug\nbuildtype = debug\n'
+    )
+    result = load_mesonferc(rc)
+    # Caller merges base + config options; verify they are stored separately
+    assert result['options'] == {'prefix': '/usr'}
+    assert result['configs']['debug']['options'] == {'buildtype': 'debug'}
+
+
+def test_load_mesonferc_multiple_configs(tmp_path):
+    rc = tmp_path / '.mesonferc'
+    rc.write_text(
+        '[config:debug]\nbuilddir = _build-debug\n\n'
+        '[config:release]\nbuilddir = _build-release\n'
+    )
+    result = load_mesonferc(rc)
+    assert set(result['configs']) == {'debug', 'release'}
