@@ -1622,7 +1622,7 @@ class MainWindow(QMainWindow):
         self._options = options
         self._setups = setups
         self._source_dir = source_dir
-        self._setup_panel.set_project_dir(source_dir)
+        self._setup_panel.set_project_dir(source_dir, force=True)
         title = f'Meson Options — {project_name}' if project_name else f'Meson Options — {self._builddir.resolve(strict=False).name}'
         self.setWindowTitle(title)
         self._status_label.setText(self._builddir.resolve(strict=False).name)
