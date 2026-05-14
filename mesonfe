@@ -219,20 +219,20 @@ _SETTINGS_PATH  = Path(user_config_dir('mesonfe')) / 'settings.json'
 _DEFAULT_RC_PATH = Path(user_config_dir('mesonfe')) / 'default.mesonferc'
 
 _DEFAULT_RC_CONTENT = """\
-default_builddir = _build
+default_builddir=_build
 
 [options]
-# buildtype = debugoptimized
+# buildtype=debugoptimized
 
 [config:debug]
-builddir = _build-debug
-# buildtype = debug
-# b_sanitize = address
+builddir=_build-debug
+# buildtype=debug
+# b_sanitize=address
 
 [config:release]
-builddir = _build-release
-# buildtype = release
-# prefix = /usr
+builddir=_build-release
+# buildtype=release
+# prefix=/usr
 """
 
 _DEFAULT_OUTPUT_FONT_SIZE = 13

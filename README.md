@@ -38,19 +38,19 @@ first run a template is written to the mesonfe configuration directory; the
 Setup tab's **Create .mesonferc** copies it into the current source directory.
 
 ```ini
-default_builddir = _build
+default_builddir=_build
 
 [options]
-# buildtype = debugoptimized
+# buildtype=debugoptimized
 
 [config:debug]
-builddir = _build-debug
-# buildtype = debug
+builddir=_build-debug
+# buildtype=debug
 
 [config:release]
-builddir = _build-release
-# buildtype = release
-# prefix = /usr
+builddir=_build-release
+# buildtype=release
+# prefix=/usr
 ```
 
 Named configurations appear in the Setup tab's **Configuration** combo. Selecting
