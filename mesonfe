@@ -1268,6 +1268,7 @@ class SetupPanel(QWidget):
             self._src_dir = str(path)
             if force or not self._src_edit.text():
                 self._src_edit.setText(self._src_dir)
+                self._auto_load_rc(Path(path))
 
     def _browse_src(self):
         start = self._src_edit.text() or ''
@@ -1300,6 +1301,23 @@ class SetupPanel(QWidget):
         shutil.copy(_DEFAULT_RC_PATH, rc_path)
         QMessageBox.information(self.window(), 'Created', f'Created {rc_path}')
 
+    def _auto_load_rc(self, src_path: Path):
+        rc_path = src_path / '.mesonferc'
+        if not rc_path.exists():
+            rc_path = _DEFAULT_RC_PATH
+        if rc_path.exists():
+            self._load_rc(rc_path)
+
+    def _load_rc(self, rc_path: Path):
+        self._rc_data = load_mesonferc(rc_path)
+        self._config_combo.blockSignals(True)
+        self._config_combo.clear()
+        self._config_combo.addItem('(default)')
+        for name in self._rc_data['configs']:
+            self._config_combo.addItem(name)
+        self._config_combo.blockSignals(False)
+        self._apply_config('(default)')
+
     def _load_from_mesonferc(self):
         src = self._src_edit.text().strip()
         if not src:
@@ -1311,14 +1329,7 @@ class SetupPanel(QWidget):
             QMessageBox.information(self.window(), 'Not found',
                                     f'No .mesonferc found in {src}')
             return
-        self._rc_data = load_mesonferc(rc_path)
-        self._config_combo.blockSignals(True)
-        self._config_combo.clear()
-        self._config_combo.addItem('(default)')
-        for name in self._rc_data['configs']:
-            self._config_combo.addItem(name)
-        self._config_combo.blockSignals(False)
-        self._apply_config('(default)')
+        self._load_rc(rc_path)
 
     def _apply_config(self, name: str):
         if self._rc_data is None:
