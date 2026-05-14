@@ -1779,6 +1779,14 @@ class MainWindow(QMainWindow):
         kb_btn.clicked.connect(lambda: self._open_keybindings(dlg))
         layout.addWidget(kb_btn, alignment=Qt.AlignLeft)
 
+        def _open_default_rc():
+            ensure_default_mesonferc()
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(_DEFAULT_RC_PATH)))
+
+        rc_btn = QPushButton('Edit default .mesonferc…')
+        rc_btn.clicked.connect(_open_default_rc)
+        layout.addWidget(rc_btn, alignment=Qt.AlignLeft)
+
         btns = QHBoxLayout()
         btns.addStretch()
         ok_btn = QPushButton('OK')
