@@ -1200,6 +1200,7 @@ class SetupPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._src_dir = None
+        self._build_src_dir = None
         self._rc_data = None
         self._skip_next_rc_reload = False
         layout = QVBoxLayout(self)
@@ -1209,10 +1210,18 @@ class SetupPanel(QWidget):
         src_row = QHBoxLayout()
         self._src_edit = QLineEdit()
         self._src_edit.setPlaceholderText('Project source directory')
+        self._src_edit.textChanged.connect(self._check_src_mismatch)
         src_browse = QPushButton('Browse…')
         src_browse.clicked.connect(self._browse_src)
+        self._src_mismatch_lbl = QLabel('*')
+        self._src_mismatch_lbl.setStyleSheet('color: red; font-weight: bold; font-size: 14px;')
+        self._src_mismatch_lbl.setToolTip(
+            'Source directory does not match the current build directory\'s source'
+        )
+        self._src_mismatch_lbl.hide()
         src_row.addWidget(self._src_edit)
         src_row.addWidget(src_browse)
+        src_row.addWidget(self._src_mismatch_lbl)
         form.addRow('Source directory:', src_row)
 
         bld_row = QHBoxLayout()
@@ -1273,6 +1282,28 @@ class SetupPanel(QWidget):
                     self._skip_next_rc_reload = False
                 else:
                     self._auto_load_rc(Path(path))
+
+    def set_build_src_dir(self, path):
+        self._build_src_dir = Path(path) if path else None
+        self._check_src_mismatch()
+
+    def _check_src_mismatch(self):
+        if not self._build_src_dir:
+            self._src_edit.setStyleSheet('')
+            self._src_mismatch_lbl.hide()
+            return
+        current = self._src_edit.text().strip()
+        try:
+            match = (Path(current).resolve(strict=False) ==
+                     self._build_src_dir.resolve(strict=False))
+        except Exception:
+            match = False
+        if match:
+            self._src_edit.setStyleSheet('')
+            self._src_mismatch_lbl.hide()
+        else:
+            self._src_edit.setStyleSheet('color: #cc0000;')
+            self._src_mismatch_lbl.show()
 
     def _browse_src(self):
         start = self._src_edit.text() or ''
@@ -1630,6 +1661,7 @@ class MainWindow(QMainWindow):
         self._setups = setups
         self._source_dir = source_dir
         self._setup_panel.set_project_dir(source_dir, force=True)
+        self._setup_panel.set_build_src_dir(source_dir)
         title = f'Meson Options — {project_name}' if project_name else f'Meson Options — {self._builddir.resolve(strict=False).name}'
         self.setWindowTitle(title)
         self._status_label.setText(self._builddir.resolve(strict=False).name)
@@ -1920,6 +1952,7 @@ class MainWindow(QMainWindow):
         if self._project_dir is None and source_dir:
             self._project_dir = source_dir
         self._setup_panel.set_project_dir(self._project_dir or source_dir, force=True)
+        self._setup_panel.set_build_src_dir(None)
         self.setWindowTitle('mesonfe')
         self._status_label.setText('No build directory')
         self._open_terminal_action.setEnabled(False)
