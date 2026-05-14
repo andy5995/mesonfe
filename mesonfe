@@ -1201,6 +1201,7 @@ class SetupPanel(QWidget):
         super().__init__(parent)
         self._src_dir = None
         self._rc_data = None
+        self._skip_next_rc_reload = False
         layout = QVBoxLayout(self)
 
         form = QFormLayout()
@@ -1268,7 +1269,10 @@ class SetupPanel(QWidget):
             self._src_dir = str(path)
             if force or not self._src_edit.text():
                 self._src_edit.setText(self._src_dir)
-                self._auto_load_rc(Path(path))
+                if self._skip_next_rc_reload:
+                    self._skip_next_rc_reload = False
+                else:
+                    self._auto_load_rc(Path(path))
 
     def _browse_src(self):
         start = self._src_edit.text() or ''
@@ -1371,6 +1375,7 @@ class SetupPanel(QWidget):
         self._out.clear()
         self._line_buf = ['']
         self._run_btn.setEnabled(False)
+        self._skip_next_rc_reload = True
         self._proc.setWorkingDirectory(src)
         self._proc.start('meson', args)
 
@@ -1385,6 +1390,8 @@ class SetupPanel(QWidget):
             bld = self._bld_edit.text().strip()
             bld_path = Path(bld) if Path(bld).is_absolute() else Path(src) / bld
             self.setup_done.emit(str(bld_path.resolve(strict=False)))
+        else:
+            self._skip_next_rc_reload = False
 
 
 class MainWindow(QMainWindow):
