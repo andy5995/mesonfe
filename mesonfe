@@ -208,6 +208,7 @@ def load_mesonferc_options(rc_path: Path) -> dict:
 
 
 _RECENT_PATH = Path(user_config_dir('mesonfe')) / 'recent.json'
+_RECENT_PROJ_PATH = Path(user_config_dir('mesonfe')) / 'recent_projects.json'
 _RECENT_MAX = 10
 
 _SHORTCUT_PATH  = Path(user_config_dir('mesonfe')) / 'keybindings.json'
@@ -313,6 +314,27 @@ def add_recent_dir(builddir: Path) -> list:
     dirs.insert(0, entry)
     dirs = dirs[:_RECENT_MAX]
     save_recent_dirs(dirs)
+    return dirs
+
+
+def load_recent_project_dirs() -> list:
+    data = read_json(_RECENT_PROJ_PATH)
+    if isinstance(data, list):
+        return [p for p in data if Path(p).exists()]
+    return []
+
+
+def save_recent_project_dirs(dirs: list):
+    _RECENT_PROJ_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _RECENT_PROJ_PATH.write_text(json.dumps(dirs, indent=2))
+
+
+def add_recent_project_dir(projectdir: Path) -> list:
+    entry = str(projectdir.resolve(strict=False))
+    dirs = [d for d in load_recent_project_dirs() if d != entry]
+    dirs.insert(0, entry)
+    dirs = dirs[:_RECENT_MAX]
+    save_recent_project_dirs(dirs)
     return dirs
 
 
@@ -2100,16 +2122,30 @@ class MainWindow(QMainWindow):
 
     def _refresh_recent_menu(self):
         self._recent_menu.clear()
-        dirs = load_recent_dirs()
-        if dirs:
-            for path in dirs:
-                action = self._recent_menu.addAction(path)
-                action.triggered.connect(lambda checked, p=path: self._load_builddir(Path(p)))
-            self._recent_menu.addSeparator()
-            self._recent_menu.addAction('Clear Recent').triggered.connect(self._clear_recent)
-        else:
+        build_dirs = load_recent_dirs()
+        project_dirs = load_recent_project_dirs()
+        if not build_dirs and not project_dirs:
             empty = self._recent_menu.addAction('(empty)')
             empty.setEnabled(False)
+            return
+        self._recent_menu.addSection('Build Directories')
+        if build_dirs:
+            for path in build_dirs:
+                action = self._recent_menu.addAction(path)
+                action.triggered.connect(lambda checked, p=path: self._load_builddir(Path(p)))
+        else:
+            empty = self._recent_menu.addAction('(none)')
+            empty.setEnabled(False)
+        self._recent_menu.addSection('Project Directories')
+        if project_dirs:
+            for path in project_dirs:
+                action = self._recent_menu.addAction(path)
+                action.triggered.connect(lambda checked, p=path: self._open_recent_project_dir(Path(p)))
+        else:
+            empty = self._recent_menu.addAction('(none)')
+            empty.setEnabled(False)
+        self._recent_menu.addSeparator()
+        self._recent_menu.addAction('Clear Recent').triggered.connect(self._clear_recent)
 
     def _open_build_dir(self):
         path = QFileDialog.getExistingDirectory(self, 'Select Build Directory')
@@ -2121,6 +2157,8 @@ class MainWindow(QMainWindow):
         if not path:
             return
         self._project_dir = Path(path)
+        add_recent_project_dir(self._project_dir)
+        self._refresh_recent_menu()
         self._setup_panel.set_project_dir(self._project_dir, force=True)
         self._update_setup_tab_state()
         self._tabs.setCurrentWidget(self._setup_panel)
@@ -2154,8 +2192,15 @@ class MainWindow(QMainWindow):
         self._builddir = builddir
         self._rebuild()
 
+    def _open_recent_project_dir(self, path: Path):
+        self._project_dir = path
+        self._setup_panel.set_project_dir(path, force=True)
+        self._update_setup_tab_state()
+        self._tabs.setCurrentWidget(self._setup_panel)
+
     def _clear_recent(self):
         save_recent_dirs([])
+        save_recent_project_dirs([])
         self._refresh_recent_menu()
 
     def _jump_to_option(self, row, _col):
