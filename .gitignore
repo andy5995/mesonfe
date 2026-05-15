@@ -1,4 +1,5 @@
 po/**/*.mo
+po/*.po~
 __pycache__/
 *.pyc
 *.pyo

@@ -1,37 +1,44 @@
-# German translation for mesonfe
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
 msgid ""
 msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-15 12:06-0500\n"
-"Language: de\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
 
 #: mesonfe:425 mesonfe:2138
 msgid "Apply"
-msgstr "Anwenden"
+msgstr ""
 
 #: mesonfe:1456
 msgid "Run meson setup"
-msgstr "Meson setup ausführen"
+msgstr ""
 
 #: mesonfe:1672
 msgid "Open Build Directory…"
-msgstr "Build-Verzeichnis öffnen…"
+msgstr ""
 
 #: mesonfe:1882 mesonfe:2299 mesonfe:2375
 msgid ""
 "No build directory loaded.\n"
 "Open one via the File menu, or use the Setup tab to run meson setup."
 msgstr ""
-"Kein Build-Verzeichnis geladen.\n"
-"Öffnen Sie eines über das Datei-Menü oder verwenden Sie den Setup-Tab, um "
-"meson setup auszuführen."
 
 #: mesonfe:1886 mesonfe:2292 mesonfe:2369
 msgid "No build directory"
-msgstr "Kein Build-Verzeichnis"
+msgstr ""
 
 #: mesonfe:2358
 msgid "Source dir differs from loaded build — other tabs disabled"
 msgstr ""
-"Quellverzeichnis weicht vom geladenen Build ab — andere Tabs deaktiviert"

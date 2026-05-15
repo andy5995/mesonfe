@@ -1,27 +1,37 @@
 # Polish translation for mesonfe
 msgid ""
 msgstr ""
-"Content-Type: text/plain; charset=UTF-8\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-15 12:06-0500\n"
 "Language: pl\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 
+#: mesonfe:425 mesonfe:2138
 msgid "Apply"
 msgstr "Zastosuj"
 
+#: mesonfe:1456
 msgid "Run meson setup"
 msgstr "Uruchom meson setup"
 
+#: mesonfe:1672
 msgid "Open Build Directory…"
 msgstr "Otwórz katalog budowania…"
 
+#: mesonfe:1882 mesonfe:2299 mesonfe:2375
 msgid ""
 "No build directory loaded.\n"
 "Open one via the File menu, or use the Setup tab to run meson setup."
 msgstr ""
 "Nie załadowano katalogu budowania.\n"
-"Otwórz go przez menu Plik lub użyj karty Konfiguracja, aby uruchomić meson setup."
+"Otwórz go przez menu Plik lub użyj karty Konfiguracja, aby uruchomić meson "
+"setup."
 
+#: mesonfe:1886 mesonfe:2292 mesonfe:2369
 msgid "No build directory"
 msgstr "Brak katalogu budowania"
 
+#: mesonfe:2358
 msgid "Source dir differs from loaded build — other tabs disabled"
-msgstr "Katalog źródłowy różni się od załadowanego budowania — inne karty wyłączone"
+msgstr ""
+"Katalog źródłowy różni się od załadowanego budowania — inne karty wyłączone"

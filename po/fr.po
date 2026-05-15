@@ -1,27 +1,37 @@
 # French translation for mesonfe
 msgid ""
 msgstr ""
-"Content-Type: text/plain; charset=UTF-8\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-15 12:06-0500\n"
 "Language: fr\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 
+#: mesonfe:425 mesonfe:2138
 msgid "Apply"
 msgstr "Appliquer"
 
+#: mesonfe:1456
 msgid "Run meson setup"
 msgstr "Exécuter meson setup"
 
+#: mesonfe:1672
 msgid "Open Build Directory…"
 msgstr "Ouvrir un répertoire de build…"
 
+#: mesonfe:1882 mesonfe:2299 mesonfe:2375
 msgid ""
 "No build directory loaded.\n"
 "Open one via the File menu, or use the Setup tab to run meson setup."
 msgstr ""
 "Aucun répertoire de build chargé.\n"
-"Ouvrez-en un via le menu Fichier ou utilisez l'onglet Configuration pour exécuter meson setup."
+"Ouvrez-en un via le menu Fichier ou utilisez l'onglet Configuration pour "
+"exécuter meson setup."
 
+#: mesonfe:1886 mesonfe:2292 mesonfe:2369
 msgid "No build directory"
 msgstr "Aucun répertoire de build"
 
+#: mesonfe:2358
 msgid "Source dir differs from loaded build — other tabs disabled"
-msgstr "Le répertoire source diffère du build chargé — autres onglets désactivés"
+msgstr ""
+"Le répertoire source diffère du build chargé — autres onglets désactivés"
