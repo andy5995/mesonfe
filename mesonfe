@@ -2667,25 +2667,25 @@ def _apply_dark_theme(app, check_icon_path: str = '', arrow_icon_path: str = '')
         }
         QComboBox {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #1e2e5c, stop:1 #0f1835);
-            color: #ffffff;
-            border: 1px solid #0d1535;
-            border-top-color: #3a5090;
-            border-left-color: #3a5090;
+                stop:0 #424242, stop:1 #181818);
+            color: #e8e8e8;
+            border: 1px solid #0e0e0e;
+            border-top-color: #5e5e5e;
+            border-left-color: #5e5e5e;
             border-radius: 3px;
             padding: 3px 8px;
         }
         QComboBox:hover {
-            border-top-color: #8ec6f0;
-            border-left-color: #8ec6f0;
+            border-top-color: #909090;
+            border-left-color: #909090;
         }
         QComboBox::drop-down {
             subcontrol-origin: padding;
             subcontrol-position: top right;
             width: 20px;
-            border-left: 1px solid #0d1535;
+            border-left: 1px solid #0e0e0e;
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #2a3f7a, stop:1 #162255);
+                stop:0 #303030, stop:1 #101010);
             border-top-right-radius: 3px;
             border-bottom-right-radius: 3px;
         }
@@ -2695,39 +2695,39 @@ def _apply_dark_theme(app, check_icon_path: str = '', arrow_icon_path: str = '')
             height: 8px;
         }
         QComboBox QAbstractItemView {
-            background: #0f1835;
-            color: #ffffff;
-            border: 1px solid #2e4a7a;
-            selection-background-color: #2a82da;
+            background: #1e1e1e;
+            color: #e8e8e8;
+            border: 1px solid #0e0e0e;
+            selection-background-color: #484848;
             selection-color: #ffffff;
         }
         QPushButton {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #2a3f7a, stop:1 #162255);
-            color: #ffffff;
-            border: 1px solid #0d1535;
-            border-top-color: #3a5090;
-            border-left-color: #3a5090;
+                stop:0 #585858, stop:1 #202020);
+            color: #e8e8e8;
+            border: 1px solid #111111;
+            border-top-color: #707070;
+            border-left-color: #707070;
             border-radius: 3px;
             padding: 4px 12px;
         }
         QPushButton:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #344a8a, stop:1 #1e2e65);
+                stop:0 #686868, stop:1 #2a2a2a);
         }
         QPushButton:pressed {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #162255, stop:1 #2a3f7a);
-            border-top-color: #0d1535;
-            border-left-color: #0d1535;
-            border-right-color: #3a5090;
-            border-bottom-color: #3a5090;
+                stop:0 #202020, stop:1 #585858);
+            border-top-color: #111111;
+            border-left-color: #111111;
+            border-right-color: #707070;
+            border-bottom-color: #707070;
         }
         QPushButton:disabled {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #1a2448, stop:1 #0f1830);
-            color: #4a5a80;
-            border-color: #1a2448;
+                stop:0 #2e2e2e, stop:1 #141414);
+            color: #555555;
+            border-color: #222222;
         }
     """.replace('CHECK_ICON_PATH', check_icon_path)
        .replace('ARROW_ICON_PATH', arrow_icon_path))
