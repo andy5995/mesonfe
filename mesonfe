@@ -1319,10 +1319,13 @@ class SetupPanel(QWidget):
         rc_row = QHBoxLayout()
         rc_row.addWidget(QLabel('.mesonferc:'))
         self._create_rc_btn = QPushButton('Create')
+        self._create_rc_btn.setToolTip('Create a .mesonferc in the source directory')
         self._create_rc_btn.clicked.connect(self._create_mesonferc)
         self._load_rc_btn = QPushButton('Load')
+        self._load_rc_btn.setToolTip('Load options from .mesonferc into the fields below')
         self._load_rc_btn.clicked.connect(self._load_from_mesonferc)
         self._open_rc_btn = QPushButton('Open')
+        self._open_rc_btn.setToolTip('Open .mesonferc in an editor')
         self._open_rc_btn.clicked.connect(self._open_mesonferc)
         rc_row.addWidget(self._create_rc_btn)
         rc_row.addWidget(self._load_rc_btn)
@@ -1752,7 +1755,7 @@ class MainWindow(QMainWindow):
             self._rebuild()
         else:
             placeholder = QWidget()
-            lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory…')
+            lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory… or run meson setup from the Setup tab.')
             lbl.setAlignment(Qt.AlignCenter)
             QVBoxLayout(placeholder).addWidget(lbl)
             self._set_build_options_widget(placeholder)
@@ -2214,9 +2217,11 @@ class MainWindow(QMainWindow):
             return
         if same_path(text, self._source_dir):
             self._set_tabs_enabled(True)
+            self._status_label.setText(self._builddir.resolve(strict=False).name)
         else:
             self._set_tabs_enabled(False)
             self._tabs.setCurrentWidget(self._setup_panel)
+            self._status_label.setText('Source dir differs from loaded build — other tabs disabled')
 
     def _on_setup_done(self, bld_path: str):
         self._load_builddir(Path(bld_path))
@@ -2233,7 +2238,7 @@ class MainWindow(QMainWindow):
             self._wipe_action.setEnabled(False)
             self._remove_builddir_action.setEnabled(False)
             placeholder = QWidget()
-            lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory…')
+            lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory… or run meson setup from the Setup tab.')
             lbl.setAlignment(Qt.AlignCenter)
             QVBoxLayout(placeholder).addWidget(lbl)
             self._set_build_options_widget(placeholder)
