@@ -1199,6 +1199,7 @@ class BuildFilesPanel(QWidget):
 
 class SetupPanel(QWidget):
     setup_done = pyqtSignal(str)  # emits absolute build dir path on success
+    build_dir_removed = pyqtSignal(str)  # emits absolute build dir path after deletion
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1214,6 +1215,7 @@ class SetupPanel(QWidget):
         self._src_edit = QLineEdit()
         self._src_edit.setPlaceholderText('Project source directory')
         self._src_edit.textChanged.connect(self._check_src_mismatch)
+        self._src_edit.textChanged.connect(self._update_delete_btn)
         src_browse = QPushButton('Browse…')
         src_browse.clicked.connect(self._browse_src)
         self._src_mismatch_lbl = QLabel('*')
@@ -1230,10 +1232,15 @@ class SetupPanel(QWidget):
         bld_row = QHBoxLayout()
         self._bld_edit = QLineEdit()
         self._bld_edit.setText('_build')
+        self._bld_edit.textChanged.connect(self._update_delete_btn)
         bld_browse = QPushButton('Browse…')
         bld_browse.clicked.connect(self._browse_bld)
+        self._del_bld_btn = QPushButton('Delete build dir…')
+        self._del_bld_btn.setEnabled(False)
+        self._del_bld_btn.clicked.connect(self._delete_bld)
         bld_row.addWidget(self._bld_edit)
         bld_row.addWidget(bld_browse)
+        bld_row.addWidget(self._del_bld_btn)
         form.addRow('Build directory:', bld_row)
 
         self._config_combo = QComboBox()
@@ -1275,6 +1282,7 @@ class SetupPanel(QWidget):
         )
         self._proc.finished.connect(self._on_finished)
         self._line_buf = ['']
+        self._update_delete_btn()
 
     def set_project_dir(self, path, force: bool = False):
         if path:
@@ -1319,6 +1327,38 @@ class SetupPanel(QWidget):
         path = QFileDialog.getExistingDirectory(self, 'Select Build Directory', start)
         if path:
             self._bld_edit.setText(path)
+
+    def _bld_path(self) -> Path | None:
+        bld = self._bld_edit.text().strip()
+        src = self._src_edit.text().strip()
+        if not bld:
+            return None
+        p = Path(bld)
+        return p if p.is_absolute() else (Path(src) / p if src else None)
+
+    def _update_delete_btn(self):
+        p = self._bld_path()
+        self._del_bld_btn.setEnabled(bool(p and p.exists()))
+
+    def _delete_bld(self):
+        p = self._bld_path()
+        if not p or not p.exists():
+            return
+        reply = QMessageBox.warning(
+            self.window(), 'Delete build directory',
+            f'Permanently delete\n{p}\n\nThis cannot be undone. Continue?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        try:
+            shutil.rmtree(p)
+        except OSError as e:
+            QMessageBox.critical(self.window(), 'Error', f'Failed to delete:\n{e}')
+            return
+        self._del_bld_btn.setEnabled(False)
+        self.build_dir_removed.emit(str(p.resolve(strict=False)))
 
     def _create_mesonferc(self):
         src = self._src_edit.text().strip()
@@ -1539,6 +1579,7 @@ class MainWindow(QMainWindow):
         self._test_panel = TestPanel()
         self._setup_panel = SetupPanel()
         self._setup_panel.setup_done.connect(self._on_setup_done)
+        self._setup_panel.build_dir_removed.connect(self._on_setup_build_dir_removed)
         self._tree_panel = BuildFilesPanel()
         self._tree_panel.close_requested.connect(
             lambda: self._tree_action.setChecked(False)
@@ -2086,6 +2127,24 @@ class MainWindow(QMainWindow):
 
     def _on_setup_done(self, bld_path: str):
         self._load_builddir(Path(bld_path))
+
+    def _on_setup_build_dir_removed(self, bld_path: str):
+        if self._builddir and self._builddir.resolve(strict=False) == Path(bld_path):
+            self._builddir = None
+            self._source_dir = None
+            self._setup_panel.set_build_src_dir(None)
+            self.setWindowTitle('mesonfe')
+            self._status_label.setText('No build directory')
+            self._open_terminal_action.setEnabled(False)
+            self._reconfigure_action.setEnabled(False)
+            self._wipe_action.setEnabled(False)
+            self._remove_builddir_action.setEnabled(False)
+            placeholder = QWidget()
+            lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory…')
+            lbl.setAlignment(Qt.AlignCenter)
+            QVBoxLayout(placeholder).addWidget(lbl)
+            self._set_build_options_widget(placeholder)
+            self._set_tabs_enabled(False)
 
     def _load_builddir(self, builddir: Path):
         if not _is_build_dir(builddir):
