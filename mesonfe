@@ -28,6 +28,14 @@ except ImportError:
     _PKGDATADIR = None
     _URL = 'https://github.com/andy5995/mesonfe'
 
+_APP_TITLE = f'mesonfe {VERSION}' if VERSION != 'unknown' else 'mesonfe'
+
+
+def _make_window_title(project_name=None):
+    if project_name:
+        return f'{project_name} — {_APP_TITLE}'
+    return _APP_TITLE
+
 
 def _is_build_dir(path: Path) -> bool:
     return (path / 'meson-info').is_dir() or (path / 'meson-private').is_dir()
@@ -1520,7 +1528,7 @@ class MainWindow(QMainWindow):
         self._test_items = []
         self._source_dir = None
         self._changed = []
-        self.setWindowTitle('mesonfe' if builddir is None else f'Meson Options — {builddir}')
+        self.setWindowTitle(_make_window_title())
         screen = QApplication.primaryScreen().availableGeometry()
         self.resize(int(screen.width() * 0.8), int(screen.height() * 0.8))
 
@@ -1762,8 +1770,7 @@ class MainWindow(QMainWindow):
         self._source_dir = source_dir
         self._setup_panel.set_project_dir(source_dir, force=True)
         self._setup_panel.set_build_src_dir(source_dir)
-        title = f'Meson Options — {project_name}' if project_name else f'Meson Options — {self._builddir.resolve(strict=False).name}'
-        self.setWindowTitle(title)
+        self.setWindowTitle(_make_window_title(project_name or self._builddir.resolve(strict=False).name))
         self._status_label.setText(self._builddir.resolve(strict=False).name)
         defaults = parse_defaults(source_dir) if source_dir else {}
 
@@ -2088,7 +2095,7 @@ class MainWindow(QMainWindow):
             self._project_dir = source_dir
         self._setup_panel.set_project_dir(self._project_dir or source_dir, force=True)
         self._setup_panel.set_build_src_dir(None)
-        self.setWindowTitle('mesonfe')
+        self.setWindowTitle(_make_window_title())
         self._status_label.setText('No build directory')
         self._open_terminal_action.setEnabled(False)
         self._reconfigure_action.setEnabled(False)
@@ -2202,7 +2209,7 @@ class MainWindow(QMainWindow):
             self._builddir = None
             self._source_dir = None
             self._setup_panel.set_build_src_dir(None)
-            self.setWindowTitle('mesonfe')
+            self.setWindowTitle(_make_window_title())
             self._status_label.setText('No build directory')
             self._open_terminal_action.setEnabled(False)
             self._reconfigure_action.setEnabled(False)
