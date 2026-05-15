@@ -251,6 +251,7 @@ _DEFAULT_SHORTCUTS = {
     'file_open_project':   '',
     'file_setup_rc':       '',
     'file_quit':           'Ctrl+Q',
+    'meson_reconfigure':   '',
     'meson_wipe':          '',
     'tools_remove_builddir': '',
     'help_about':          'F1',
@@ -1473,6 +1474,12 @@ class MainWindow(QMainWindow):
         self._open_terminal_action.triggered.connect(self._open_terminal)
         self._open_terminal_action.setEnabled(False)
 
+        self._reconfigure_action = QAction('Reconfigure…', self)
+        self._reconfigure_action.setToolTip('Re-run meson setup with existing options (meson setup --reconfigure)')
+        self._reconfigure_action.setIcon(self._make_reconfigure_icon())
+        self._reconfigure_action.triggered.connect(self._run_reconfigure)
+        self._reconfigure_action.setEnabled(False)
+
         self._wipe_action = QAction('Wipe…', self)
         self._wipe_action.setToolTip('Wipe and reconfigure the build directory (meson setup --wipe)')
         self._wipe_action.setIcon(QIcon.fromTheme('edit-clear'))
@@ -1504,6 +1511,7 @@ class MainWindow(QMainWindow):
 
         tools_menu = self.menuBar().addMenu('Tools')
         tools_menu.addAction(self._open_terminal_action)
+        tools_menu.addAction(self._reconfigure_action)
         tools_menu.addAction(self._wipe_action)
         tools_menu.addAction(self._remove_builddir_action)
         tools_menu.addAction(self._tree_action)
@@ -1514,6 +1522,7 @@ class MainWindow(QMainWindow):
         self._toolbar.setObjectName('main_toolbar')
         self._toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self._toolbar.addAction(self._open_terminal_action)
+        self._toolbar.addAction(self._reconfigure_action)
         self._toolbar.addAction(self._wipe_action)
         self._toolbar.addAction(self._remove_builddir_action)
         self._toolbar.addAction(self._tree_action)
@@ -1602,6 +1611,7 @@ class MainWindow(QMainWindow):
             'file_open_project': ('Open Project Directory…', self._open_project_action),
             'file_setup_rc':     ('Setup from .mesonferc…', self._setup_rc_file_action),
             'file_quit':         ('Quit',                  self._quit_action),
+            'meson_reconfigure': ('Reconfigure…',            self._reconfigure_action),
             'meson_wipe':        ('Wipe…',                  self._wipe_action),
             'tools_remove_builddir': ('Remove Build Directory…', self._remove_builddir_action),
             'help_about':        ('About',                            self._about_action),
@@ -1725,6 +1735,7 @@ class MainWindow(QMainWindow):
         else:
             self._test_items = []
         self._open_terminal_action.setEnabled(True)
+        self._reconfigure_action.setEnabled(True)
         self._wipe_action.setEnabled(True)
         self._remove_builddir_action.setEnabled(True)
 
@@ -1899,6 +1910,13 @@ class MainWindow(QMainWindow):
         settings['tree_pane_visible'] = visible
         save_settings(settings)
 
+    def _run_reconfigure(self):
+        args = ['setup', '--reconfigure', str(self._source_dir), str(self._builddir)]
+        dlg = MesonSetupDialog(self, args, self._output_font_size)
+        dlg.exec_()
+        if _is_build_dir(self._builddir):
+            self._load_builddir(self._builddir)
+
     def _run_wipe(self):
         reply = QMessageBox.question(
             self, 'Wipe build directory',
@@ -1914,6 +1932,32 @@ class MainWindow(QMainWindow):
             self._load_builddir(self._builddir)
 
     @staticmethod
+    def _make_reconfigure_icon(size: int = 16) -> QIcon:
+        pix = QPixmap(size, size)
+        pix.fill(Qt.transparent)
+        painter = QPainter(pix)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor('#2277bb'))
+        painter.drawEllipse(0, 0, size, size)
+        margin = max(2, size // 5)
+        pen_w = max(1, size // 7)
+        pen = QPen(QColor('white'), pen_w, Qt.SolidLine, Qt.RoundCap)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawArc(margin, margin, size - 2 * margin, size - 2 * margin,
+                        90 * 16, -270 * 16)
+        # Arrowhead: at 9 o'clock, clockwise tangent is upward — "^" with tip at arc end
+        cx = size // 2
+        cy = size // 2
+        r = (size - 2 * margin) // 2
+        aw = max(2, size // 4)
+        ex, ey = cx - r, cy
+        painter.drawLine(ex, ey, ex - aw // 2, ey + aw // 2)
+        painter.drawLine(ex, ey, ex + aw // 2, ey + aw // 2)
+        painter.end()
+        return QIcon(pix)
+
     @staticmethod
     def _make_remove_icon(size: int = 16) -> QIcon:
         pix = QPixmap(size, size)
@@ -1956,6 +2000,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('mesonfe')
         self._status_label.setText('No build directory')
         self._open_terminal_action.setEnabled(False)
+        self._reconfigure_action.setEnabled(False)
         self._wipe_action.setEnabled(False)
         self._remove_builddir_action.setEnabled(False)
         placeholder = QWidget()
