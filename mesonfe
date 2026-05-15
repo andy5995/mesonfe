@@ -266,7 +266,8 @@ _DEFAULT_SHORTCUTS = {
     'help_about':          'F1',
     'edit_preferences':    'Ctrl+,',
     'help_meson_docs':     '',
-    'tools_open_terminal': 'Ctrl+Alt+T',
+    'tools_open_terminal':     'Ctrl+Alt+T',
+    'tools_open_filemanager':  '',
     'view_toolbar':        '',
 }
 
@@ -1565,6 +1566,16 @@ class MainWindow(QMainWindow):
         self._open_terminal_action.triggered.connect(self._open_terminal)
         self._open_terminal_action.setEnabled(False)
 
+        self._open_filemanager_action = QAction('Open File Manager…', self)
+        self._open_filemanager_action.setToolTip('Open the build directory in a file manager')
+        _fm_icon = QIcon.fromTheme('system-file-manager')
+        if _fm_icon.isNull():
+            _fm_icon = QIcon.fromTheme('folder-open')
+        if not _fm_icon.isNull():
+            self._open_filemanager_action.setIcon(_fm_icon)
+        self._open_filemanager_action.triggered.connect(self._open_file_manager)
+        self._open_filemanager_action.setEnabled(False)
+
         self._reconfigure_action = QAction('Reconfigure…', self)
         self._reconfigure_action.setToolTip('Re-run meson setup with existing options (meson setup --reconfigure)')
         self._reconfigure_action.setIcon(self._make_reconfigure_icon())
@@ -1602,6 +1613,7 @@ class MainWindow(QMainWindow):
 
         tools_menu = self.menuBar().addMenu('Tools')
         tools_menu.addAction(self._open_terminal_action)
+        tools_menu.addAction(self._open_filemanager_action)
         tools_menu.addAction(self._reconfigure_action)
         tools_menu.addAction(self._wipe_action)
         tools_menu.addAction(self._remove_builddir_action)
@@ -1613,6 +1625,7 @@ class MainWindow(QMainWindow):
         self._toolbar.setObjectName('main_toolbar')
         self._toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self._toolbar.addAction(self._open_terminal_action)
+        self._toolbar.addAction(self._open_filemanager_action)
         self._toolbar.addAction(self._reconfigure_action)
         self._toolbar.addAction(self._wipe_action)
         self._toolbar.addAction(self._remove_builddir_action)
@@ -1710,7 +1723,8 @@ class MainWindow(QMainWindow):
             'help_about':        ('About',                            self._about_action),
             'edit_preferences':  ('Preferences…',                     self._prefs_action),
             'help_meson_docs':   ('Meson Documentation',              self._meson_docs_action),
-            'tools_open_terminal': ('Open Terminal…',                 self._open_terminal_action),
+            'tools_open_terminal':    ('Open Terminal…',       self._open_terminal_action),
+            'tools_open_filemanager': ('Open File Manager…',  self._open_filemanager_action),
             'view_toolbar':        ('Show Toolbar',                   self._toolbar_view_action),
         }
         self._apply_shortcuts(load_shortcuts())
@@ -1828,6 +1842,7 @@ class MainWindow(QMainWindow):
         else:
             self._test_items = []
         self._open_terminal_action.setEnabled(True)
+        self._open_filemanager_action.setEnabled(True)
         self._reconfigure_action.setEnabled(True)
         self._wipe_action.setEnabled(True)
         self._remove_builddir_action.setEnabled(True)
@@ -2094,6 +2109,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(_make_window_title())
         self._status_label.setText('No build directory')
         self._open_terminal_action.setEnabled(False)
+        self._open_filemanager_action.setEnabled(False)
         self._reconfigure_action.setEnabled(False)
         self._wipe_action.setEnabled(False)
         self._remove_builddir_action.setEnabled(False)
@@ -2274,6 +2290,11 @@ class MainWindow(QMainWindow):
             'Could not find a terminal emulator.\n'
             'Set the $TERMINAL environment variable to your preferred terminal.',
         )
+
+    def _open_file_manager(self):
+        if not self._builddir:
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._builddir.resolve(strict=False))))
 
     def _apply(self):
         defs = []
