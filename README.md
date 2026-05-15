@@ -27,10 +27,10 @@ mesonfe /path/to/builddir  # explicit build directory
 If no build directory is found automatically, the window opens and you can use
 **File → Open Build Directory…** to select one.
 
-To set up a new build from scratch, use **File → Open Project Directory…** to
-select a source directory. This enables the **Setup** tab, where you can specify
-a build directory and extra args before running `meson setup`. After a successful
-setup, the new build directory is opened automatically.
+To set up a new build from scratch, use **File → Open Project Directory…**
+to select a source directory. This enables the **Setup** tab, where you can
+specify a build directory and extra args before running `meson setup`. After
+a successful setup, the new build directory is opened automatically.
 
 ## Configuration
 
@@ -54,9 +54,9 @@ builddir=_build-release
 # prefix=/usr
 ```
 
-Named configurations appear in the Setup tab's **Configuration** combo. Selecting
-one fills in the build directory and merges base `[options]` with the config's
-own options.
+Named configurations appear in the Setup tab's **Configuration** combo.
+Selecting one fills in the build directory and merges base `[options]` with
+the config's own options.
 
 ## Running without installing
 
