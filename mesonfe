@@ -1651,6 +1651,9 @@ class MainWindow(QMainWindow):
         _settings = load_settings()
         self._output_font_size = _settings.get('output_font_size', _DEFAULT_OUTPUT_FONT_SIZE)
         self._apply_output_font_size()
+        self._pref_terminal = _settings.get('terminal', '')
+        self._pref_editor = _settings.get('editor', '')
+        self._pref_file_manager = _settings.get('file_manager', '')
 
         self._optional_tab_widgets = {
             'tab_compile':     self._compile_panel,
@@ -1933,6 +1936,26 @@ class MainWindow(QMainWindow):
         reopen_chk.setChecked(_settings.get('reopen_last', False))
         layout.addWidget(reopen_chk)
 
+        def _make_app_row(value):
+            row = QHBoxLayout()
+            edit = QLineEdit(value)
+            browse = QPushButton('Browse…')
+            browse.clicked.connect(lambda: (
+                lambda p: edit.setText(p) if p else None
+            )(QFileDialog.getOpenFileName(dlg, 'Select executable')[0]))
+            row.addWidget(edit)
+            row.addWidget(browse)
+            return row, edit
+
+        apps_form = QFormLayout()
+        term_row, terminal_edit = _make_app_row(_settings.get('terminal', ''))
+        apps_form.addRow('Terminal:', term_row)
+        editor_row, editor_edit = _make_app_row(_settings.get('editor', ''))
+        apps_form.addRow('Editor:', editor_row)
+        fm_row, filemanager_edit = _make_app_row(_settings.get('file_manager', ''))
+        apps_form.addRow('File manager:', fm_row)
+        layout.addLayout(apps_form)
+
         kb_btn = QPushButton('Keybindings…')
         kb_btn.clicked.connect(lambda: self._open_keybindings(dlg))
         layout.addWidget(kb_btn, alignment=Qt.AlignLeft)
@@ -1945,27 +1968,37 @@ class MainWindow(QMainWindow):
         rc_btn.clicked.connect(_open_default_rc)
         layout.addWidget(rc_btn, alignment=Qt.AlignLeft)
 
+        def _apply_prefs():
+            settings = load_settings()
+            size = spin.value()
+            if size != self._output_font_size:
+                self._output_font_size = size
+                self._apply_output_font_size()
+            settings['output_font_size'] = size
+            settings['reopen_last'] = reopen_chk.isChecked()
+            self._pref_terminal = terminal_edit.text().strip()
+            self._pref_editor = editor_edit.text().strip()
+            self._pref_file_manager = filemanager_edit.text().strip()
+            settings['terminal'] = self._pref_terminal
+            settings['editor'] = self._pref_editor
+            settings['file_manager'] = self._pref_file_manager
+            save_settings(settings)
+
         btns = QHBoxLayout()
         btns.addStretch()
         ok_btn = QPushButton('OK')
         ok_btn.setDefault(True)
-        ok_btn.clicked.connect(dlg.accept)
+        ok_btn.clicked.connect(lambda: (_apply_prefs(), dlg.accept()))
+        apply_btn = QPushButton('Apply')
+        apply_btn.clicked.connect(_apply_prefs)
         cancel_btn = QPushButton('Cancel')
         cancel_btn.clicked.connect(dlg.reject)
         btns.addWidget(ok_btn)
+        btns.addWidget(apply_btn)
         btns.addWidget(cancel_btn)
         layout.addLayout(btns)
 
-        if dlg.exec_() != QDialog.Accepted:
-            return
-        settings = load_settings()
-        size = spin.value()
-        if size != self._output_font_size:
-            self._output_font_size = size
-            self._apply_output_font_size()
-            settings['output_font_size'] = size
-        settings['reopen_last'] = reopen_chk.isChecked()
-        save_settings(settings)
+        dlg.exec_()
 
     def _open_keybindings(self, parent=None):
         dialog = KeybindingsDialog(parent or self, self._action_map)
@@ -2276,7 +2309,7 @@ class MainWindow(QMainWindow):
                 (['mate-terminal'],                                                         cwd),
                 (['tilix'],                                                                 cwd),
             ]
-        term = os.environ.get('TERMINAL', '')
+        term = self._pref_terminal or os.environ.get('TERMINAL', '')
         if term:
             candidates.insert(0, ([term], cwd))
         for cmd, popen_cwd in candidates:
@@ -2294,7 +2327,14 @@ class MainWindow(QMainWindow):
     def _open_file_manager(self):
         if not self._builddir:
             return
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._builddir.resolve(strict=False))))
+        path = str(self._builddir.resolve(strict=False))
+        if self._pref_file_manager:
+            try:
+                subprocess.Popen([self._pref_file_manager, path])
+                return
+            except (FileNotFoundError, OSError):
+                pass
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def _apply(self):
         defs = []
