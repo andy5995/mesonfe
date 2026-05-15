@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
     QHeaderView, QComboBox, QLineEdit, QDialog, QTextEdit, QMessageBox,
     QListWidget, QListWidgetItem, QCheckBox, QFileDialog, QSpinBox,
     QKeySequenceEdit, QAction, QSplitter, QTabWidget, QTabBar,
-    QTreeWidget, QTreeWidgetItem, QPlainTextEdit,
+    QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QFrame,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
@@ -372,6 +372,8 @@ def add_recent_project_dir(projectdir: Path) -> list:
 
 
 class KeybindingsDialog(QDialog):
+    applied = pyqtSignal(dict)
+
     def __init__(self, parent, action_map: dict):
         super().__init__(parent)
         self.setWindowTitle('Configure Keybindings')
@@ -403,12 +405,16 @@ class KeybindingsDialog(QDialog):
         reset_btn.clicked.connect(self._reset)
         ok_btn = QPushButton('OK')
         ok_btn.clicked.connect(self.accept)
+        apply_btn = QPushButton('Apply')
+        apply_btn.clicked.connect(lambda: self.applied.emit(self.get_shortcuts()))
         cancel_btn = QPushButton('Cancel')
         cancel_btn.clicked.connect(self.reject)
         btns.addWidget(reset_btn)
         btns.addStretch()
         btns.addWidget(ok_btn)
+        btns.addWidget(apply_btn)
         btns.addWidget(cancel_btn)
+        layout.addSpacing(24)
         layout.addLayout(btns)
 
     def _reset(self):
@@ -1937,6 +1943,8 @@ class MainWindow(QMainWindow):
         dlg = QDialog(self)
         dlg.setWindowTitle('Preferences')
         layout = QVBoxLayout(dlg)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
 
         form = QHBoxLayout()
         form.addWidget(QLabel('Output font size (points):'))
@@ -1950,6 +1958,23 @@ class MainWindow(QMainWindow):
         _settings = load_settings()
         reopen_chk.setChecked(_settings.get('reopen_last', False))
         layout.addWidget(reopen_chk)
+
+        kb_btn = QPushButton('Keybindings…')
+        kb_btn.clicked.connect(lambda: self._open_keybindings(dlg))
+        layout.addWidget(kb_btn, alignment=Qt.AlignLeft)
+
+        def _open_default_rc():
+            ensure_default_mesonferc()
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(_DEFAULT_RC_PATH)))
+
+        rc_btn = QPushButton('Edit default .mesonferc…')
+        rc_btn.clicked.connect(_open_default_rc)
+        layout.addWidget(rc_btn, alignment=Qt.AlignLeft)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(sep)
 
         def _make_app_row(value):
             row = QHBoxLayout()
@@ -1970,18 +1995,6 @@ class MainWindow(QMainWindow):
         fm_row, filemanager_edit = _make_app_row(_settings.get('file_manager', ''))
         apps_form.addRow('File manager:', fm_row)
         layout.addLayout(apps_form)
-
-        kb_btn = QPushButton('Keybindings…')
-        kb_btn.clicked.connect(lambda: self._open_keybindings(dlg))
-        layout.addWidget(kb_btn, alignment=Qt.AlignLeft)
-
-        def _open_default_rc():
-            ensure_default_mesonferc()
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(_DEFAULT_RC_PATH)))
-
-        rc_btn = QPushButton('Edit default .mesonferc…')
-        rc_btn.clicked.connect(_open_default_rc)
-        layout.addWidget(rc_btn, alignment=Qt.AlignLeft)
 
         def _apply_prefs():
             settings = load_settings()
@@ -2011,16 +2024,19 @@ class MainWindow(QMainWindow):
         btns.addWidget(ok_btn)
         btns.addWidget(apply_btn)
         btns.addWidget(cancel_btn)
+        layout.addSpacing(24)
         layout.addLayout(btns)
 
         dlg.exec_()
 
     def _open_keybindings(self, parent=None):
-        dialog = KeybindingsDialog(parent or self, self._action_map)
-        if dialog.exec_() == QDialog.Accepted:
-            shortcuts = dialog.get_shortcuts()
+        def _apply(shortcuts):
             save_shortcuts(shortcuts)
             self._apply_shortcuts(shortcuts)
+        dialog = KeybindingsDialog(parent or self, self._action_map)
+        dialog.applied.connect(_apply)
+        if dialog.exec_() == QDialog.Accepted:
+            _apply(dialog.get_shortcuts())
 
     def _make_close_btn(self, key):
         btn = QPushButton('✕')
