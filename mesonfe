@@ -270,9 +270,20 @@ def load_shortcuts() -> dict:
     return {}
 
 
+def save_json_file(path: Path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2))
+
+
+def same_path(a, b) -> bool:
+    try:
+        return Path(a).resolve(strict=False) == Path(b).resolve(strict=False)
+    except Exception:
+        return False
+
+
 def save_shortcuts(shortcuts: dict):
-    _SHORTCUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _SHORTCUT_PATH.write_text(json.dumps(shortcuts, indent=2))
+    save_json_file(_SHORTCUT_PATH, shortcuts)
 
 
 def ensure_default_mesonferc():
@@ -287,8 +298,7 @@ def load_settings() -> dict:
 
 
 def save_settings(settings: dict):
-    _SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
+    save_json_file(_SETTINGS_PATH, settings)
 
 
 def load_tab_visibility() -> dict:
@@ -296,46 +306,48 @@ def load_tab_visibility() -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def load_recent_dirs() -> list:
-    data = read_json(_RECENT_PATH)
+def _load_recent(path: Path) -> list:
+    data = read_json(path)
     if isinstance(data, list):
         return [p for p in data if Path(p).exists()]
     return []
+
+
+def _save_recent(path: Path, dirs: list):
+    save_json_file(path, dirs)
+
+
+def _add_recent(path: Path, entry: Path) -> list:
+    s = str(entry.resolve(strict=False))
+    dirs = [d for d in _load_recent(path) if d != s]
+    dirs.insert(0, s)
+    dirs = dirs[:_RECENT_MAX]
+    _save_recent(path, dirs)
+    return dirs
+
+
+def load_recent_dirs() -> list:
+    return _load_recent(_RECENT_PATH)
 
 
 def save_recent_dirs(dirs: list):
-    _RECENT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _RECENT_PATH.write_text(json.dumps(dirs, indent=2))
+    _save_recent(_RECENT_PATH, dirs)
 
 
 def add_recent_dir(builddir: Path) -> list:
-    entry = str(builddir.resolve(strict=False))
-    dirs = [d for d in load_recent_dirs() if d != entry]
-    dirs.insert(0, entry)
-    dirs = dirs[:_RECENT_MAX]
-    save_recent_dirs(dirs)
-    return dirs
+    return _add_recent(_RECENT_PATH, builddir)
 
 
 def load_recent_project_dirs() -> list:
-    data = read_json(_RECENT_PROJ_PATH)
-    if isinstance(data, list):
-        return [p for p in data if Path(p).exists()]
-    return []
+    return _load_recent(_RECENT_PROJ_PATH)
 
 
 def save_recent_project_dirs(dirs: list):
-    _RECENT_PROJ_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _RECENT_PROJ_PATH.write_text(json.dumps(dirs, indent=2))
+    _save_recent(_RECENT_PROJ_PATH, dirs)
 
 
 def add_recent_project_dir(projectdir: Path) -> list:
-    entry = str(projectdir.resolve(strict=False))
-    dirs = [d for d in load_recent_project_dirs() if d != entry]
-    dirs.insert(0, entry)
-    dirs = dirs[:_RECENT_MAX]
-    save_recent_project_dirs(dirs)
-    return dirs
+    return _add_recent(_RECENT_PROJ_PATH, projectdir)
 
 
 class KeybindingsDialog(QDialog):
@@ -1335,12 +1347,7 @@ class SetupPanel(QWidget):
             self._use_build_src_btn.hide()
             return
         current = self._src_edit.text().strip()
-        try:
-            match = (Path(current).resolve(strict=False) ==
-                     self._build_src_dir.resolve(strict=False))
-        except Exception:
-            match = False
-        if match:
+        if same_path(current, self._build_src_dir):
             self._src_edit.setStyleSheet('')
             self._src_mismatch_lbl.hide()
             self._use_build_src_btn.hide()
@@ -1976,10 +1983,7 @@ class MainWindow(QMainWindow):
             idx = self._tabs.indexOf(widget)
             if idx >= 0:
                 self._tabs.removeTab(idx)
-        _TAB_VIS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _TAB_VIS_PATH.write_text(
-            json.dumps({k: self._tab_actions[k].isChecked() for k, _, _ in _OPTIONAL_TABS}, indent=2)
-        )
+        save_json_file(_TAB_VIS_PATH, {k: self._tab_actions[k].isChecked() for k, _, _ in _OPTIONAL_TABS})
 
     def _toggle_tree_pane(self, visible):
         if visible:
@@ -2184,12 +2188,7 @@ class MainWindow(QMainWindow):
     def _on_setup_source_dir_changed(self, text: str):
         if not self._builddir or not self._source_dir:
             return
-        try:
-            match = (Path(text).resolve(strict=False) ==
-                     self._source_dir.resolve(strict=False))
-        except Exception:
-            match = False
-        if match:
+        if same_path(text, self._source_dir):
             self._set_tabs_enabled(True)
         else:
             self._set_tabs_enabled(False)
