@@ -25,12 +25,13 @@ import gettext as _gettext
 _ = _gettext.gettext
 
 try:
-    from mesonfe._version import VERSION, APP_NAME, PKGDATADIR as _PKGDATADIR, LOCALEDIR as _LOCALEDIR, URL as _URL
+    from mesonfe._version import VERSION, APP_NAME, PKGDATADIR as _PKGDATADIR, LOCALEDIR as _LOCALEDIR, NLS as _NLS, URL as _URL
 except ImportError:
     VERSION = 'unknown'
     APP_NAME = 'MesonFE'
     _PKGDATADIR = None
     _LOCALEDIR = None
+    _NLS = True
     _URL = 'https://github.com/andy5995/mesonfe'
 
 _APP_TITLE = f'{APP_NAME} {VERSION}' if VERSION != 'unknown' else APP_NAME
@@ -2664,9 +2665,10 @@ def main():
     ensure_default_mesonferc()
     app = QApplication(sys.argv)
 
-    _locale_dir = _LOCALEDIR or str(Path(__file__).parent / 'po')
-    _gettext.bindtextdomain('mesonfe', _locale_dir)
-    _gettext.textdomain('mesonfe')
+    if _NLS:
+        _locale_dir = _LOCALEDIR or str(Path(__file__).parent / 'po')
+        _gettext.bindtextdomain('mesonfe', _locale_dir)
+        _gettext.textdomain('mesonfe')
 
     _apply_dark_theme(app, _ensure_check_icon(), _ensure_arrow_icon())
     icon = QIcon.fromTheme('mesonfe')

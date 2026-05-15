@@ -33,6 +33,7 @@ _version_py = configure_file(
         'APP_NAME': _app_name,
         'PKGDATADIR': get_option('prefix') / _pkgdatadir,
         'LOCALEDIR': get_option('prefix') / get_option('localedir'),
+        'NLS': get_option('with-nls').to_string('True', 'False'),
         'URL': 'https://github.com/andy5995/mesonfe',
     },
 )
@@ -61,7 +62,9 @@ configure_file(
     install_dir: get_option('datadir') / 'applications',
 )
 
-subdir('po')
+if get_option('with-nls')
+    subdir('po')
+endif
 
 gnome = import('gnome')
 gnome.post_install(
