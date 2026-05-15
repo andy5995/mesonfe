@@ -1251,6 +1251,16 @@ class MesonHighlighter(QSyntaxHighlighter):
                 # else plain identifier, no colour
 
 
+class _MesonEditor(QPlainTextEdit):
+    _DOCS_URL = 'https://mesonbuild.com/Reference-manual_functions.html'
+
+    def mouseDoubleClickEvent(self, event):
+        super().mouseDoubleClickEvent(event)
+        word = self.textCursor().selectedText().strip()
+        if word:
+            QDesktopServices.openUrl(QUrl(f'{self._DOCS_URL}#{word}'))
+
+
 class BuildFileViewer(QDialog):
     def __init__(self, path, source_dir, parent=None):
         p = Path(path)
@@ -1267,7 +1277,7 @@ class BuildFileViewer(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
 
-        self._editor = QPlainTextEdit()
+        self._editor = _MesonEditor()
         self._editor.setReadOnly(True)
         font = QFont('Monospace')
         font.setStyleHint(QFont.TypeWriter)
