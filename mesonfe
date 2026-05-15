@@ -2407,6 +2407,74 @@ def _apply_dark_theme(app):
             background: #152240;
             color: #ffd700;
         }
+        QComboBox {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #1e2e5c, stop:1 #0f1835);
+            color: #ffffff;
+            border: 1px solid #0d1535;
+            border-top-color: #3a5090;
+            border-left-color: #3a5090;
+            border-radius: 3px;
+            padding: 3px 8px;
+        }
+        QComboBox:hover {
+            border-top-color: #8ec6f0;
+            border-left-color: #8ec6f0;
+        }
+        QComboBox::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 20px;
+            border-left: 1px solid #0d1535;
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #2a3f7a, stop:1 #162255);
+            border-top-right-radius: 3px;
+            border-bottom-right-radius: 3px;
+        }
+        QComboBox::down-arrow {
+            width: 8px;
+            height: 8px;
+            border: 2px solid #8ec6f0;
+            border-top: none;
+            border-left: none;
+            transform: rotate(45deg);
+            margin-top: -4px;
+        }
+        QComboBox QAbstractItemView {
+            background: #0f1835;
+            color: #ffffff;
+            border: 1px solid #2e4a7a;
+            selection-background-color: #2a82da;
+            selection-color: #ffffff;
+        }
+        QPushButton {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #2a3f7a, stop:1 #162255);
+            color: #ffffff;
+            border: 1px solid #0d1535;
+            border-top-color: #3a5090;
+            border-left-color: #3a5090;
+            border-radius: 3px;
+            padding: 4px 12px;
+        }
+        QPushButton:hover {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #344a8a, stop:1 #1e2e65);
+        }
+        QPushButton:pressed {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #162255, stop:1 #2a3f7a);
+            border-top-color: #0d1535;
+            border-left-color: #0d1535;
+            border-right-color: #3a5090;
+            border-bottom-color: #3a5090;
+        }
+        QPushButton:disabled {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #1a2448, stop:1 #0f1830);
+            color: #4a5a80;
+            border-color: #1a2448;
+        }
     """)
 
 
