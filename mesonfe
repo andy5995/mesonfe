@@ -256,6 +256,7 @@ _DEFAULT_OUTPUT_FONT_SIZE = 13
 _OPTIONAL_TABS = [
     ('tab_compile',     'Compile',      True),
     ('tab_install',     'Install',      True),
+    ('tab_uninstall',   'Uninstall',    True),
     ('tab_dist',        'Dist',         True),
     ('tab_subprojects', 'Subprojects',  True),
     ('tab_tests',       'Tests',        True),
@@ -444,10 +445,11 @@ class KeybindingsDialog(QDialog):
                 for aid in self._editors}
 
 
-_HL_ERROR = re.compile(r'\berror\b', re.IGNORECASE)
-_HL_WARN  = re.compile(r'\bwarning\b', re.IGNORECASE)
-_HL_NOTE  = re.compile(r'\bnote\b', re.IGNORECASE)
-_HL_EXIT  = re.compile(r'^\[exited (\d+)\]')
+_HL_ERROR           = re.compile(r'\berror\b', re.IGNORECASE)
+_HL_WARN            = re.compile(r'\bwarning\b', re.IGNORECASE)
+_HL_NOTE            = re.compile(r'\bnote\b', re.IGNORECASE)
+_HL_EXIT            = re.compile(r'^\[exited (\d+)\]')
+_HL_UNINSTALL_FAIL  = re.compile(r'^(Failed:\s+[1-9]|Could not delete\b)', re.IGNORECASE)
 
 
 def _append_highlighted(out, text, buf):
@@ -466,7 +468,7 @@ def _append_highlighted(out, text, buf):
         m = _HL_EXIT.match(line.strip())
         if m:
             fmt.setForeground(QColor('#90ee90' if m.group(1) == '0' else '#ff6b6b'))
-        elif _HL_ERROR.search(line) or 'FAILED' in line:
+        elif _HL_UNINSTALL_FAIL.match(line.strip()) or _HL_ERROR.search(line) or 'FAILED' in line:
             fmt.setForeground(QColor('#ff6b6b'))
         elif _HL_WARN.search(line):
             fmt.setForeground(QColor('#f0c060'))
@@ -756,6 +758,55 @@ class InstallPanel(QWidget):
         if self._destdir.text().strip():
             args += ['--destdir', self._destdir.text().strip()]
         self._proc.start('meson', args)
+
+    def _append(self, text: str):
+        _append_highlighted(self._out, text, self._line_buf)
+
+    def _on_finished(self, code: int, _status):
+        self._append(f'\n[exited {code}]\n')
+        self._run_btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        if self._proc.state() != QProcess.NotRunning:
+            self._proc.kill()
+            self._proc.waitForFinished(2000)
+        super().closeEvent(event)
+
+
+class UninstallPanel(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._builddir = None
+        layout = QVBoxLayout(self)
+
+        self._out = QTextEdit()
+        self._out.setReadOnly(True)
+        self._out.setFont(QFont('monospace', _DEFAULT_OUTPUT_FONT_SIZE))
+        layout.addWidget(self._out)
+
+        self._run_btn = QPushButton('Run')
+        self._run_btn.setEnabled(False)
+        self._run_btn.clicked.connect(self._run)
+        layout.addWidget(self._run_btn, alignment=Qt.AlignRight)
+
+        self._proc = QProcess(self)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyRead.connect(
+            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
+        )
+        self._proc.finished.connect(self._on_finished)
+        self._line_buf = ['']
+
+    def set_builddir(self, builddir):
+        self._builddir = builddir
+        self._run_btn.setEnabled(builddir is not None)
+
+    def _run(self):
+        self._out.clear()
+        self._line_buf[0] = ''
+        self._run_btn.setEnabled(False)
+        self._proc.setWorkingDirectory(str(self._builddir))
+        self._proc.start('meson', ['--internal', 'uninstall'])
 
     def _append(self, text: str):
         _append_highlighted(self._out, text, self._line_buf)
@@ -1792,6 +1843,7 @@ class MainWindow(QMainWindow):
 
         self._compile_panel = CompilePanel()
         self._install_panel = InstallPanel()
+        self._uninstall_panel = UninstallPanel()
         self._dist_panel = DistPanel()
         self._subprojects_panel = SubprojectsPanel()
         self._test_panel = TestPanel()
@@ -1814,6 +1866,7 @@ class MainWindow(QMainWindow):
         self._optional_tab_widgets = {
             'tab_compile':     self._compile_panel,
             'tab_install':     self._install_panel,
+            'tab_uninstall':   self._uninstall_panel,
             'tab_dist':        self._dist_panel,
             'tab_subprojects': self._subprojects_panel,
             'tab_tests':       self._test_panel,
@@ -2009,6 +2062,7 @@ class MainWindow(QMainWindow):
 
         self._compile_panel.set_builddir(self._builddir)
         self._install_panel.set_builddir(self._builddir)
+        self._uninstall_panel.set_builddir(self._builddir)
         self._dist_panel.set_builddir(self._builddir)
         self._subprojects_panel.set_source_dir(source_dir)
         self._test_panel.set_builddir(self._builddir)
@@ -2070,8 +2124,9 @@ class MainWindow(QMainWindow):
 
     def _apply_output_font_size(self):
         font = QFont('monospace', self._output_font_size)
-        for panel in (self._compile_panel, self._install_panel, self._dist_panel,
-                      self._subprojects_panel, self._test_panel, self._setup_panel):
+        for panel in (self._compile_panel, self._install_panel, self._uninstall_panel,
+                      self._dist_panel, self._subprojects_panel, self._test_panel,
+                      self._setup_panel):
             for w in panel.findChildren(QTextEdit):
                 w.setFont(font)
 
