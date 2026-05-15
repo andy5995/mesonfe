@@ -1387,6 +1387,7 @@ class SetupPanel(QWidget):
         layout = QVBoxLayout(self)
 
         form = QFormLayout()
+        self._form = form
 
         src_row = QHBoxLayout()
         self._src_edit = QLineEdit()
@@ -1429,6 +1430,7 @@ class SetupPanel(QWidget):
         self._config_combo = QComboBox()
         self._config_combo.addItem('(default)')
         self._config_combo.currentIndexChanged.connect(self._on_config_changed)
+        self._config_combo.hide()
         form.addRow('Configuration:', self._config_combo)
 
         self._args_edit = QLineEdit()
@@ -1583,6 +1585,11 @@ class SetupPanel(QWidget):
         for name in self._rc_data['configs']:
             self._config_combo.addItem(name)
         self._config_combo.blockSignals(False)
+        has_configs = bool(self._rc_data['configs'])
+        self._config_combo.setVisible(has_configs)
+        lbl = self._form.labelForField(self._config_combo)
+        if lbl:
+            lbl.setVisible(has_configs)
         self._apply_config('(default)')
 
     def _load_from_mesonferc(self):
