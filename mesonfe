@@ -1243,7 +1243,7 @@ class SetupPanel(QWidget):
         src_browse = QPushButton('Browse…')
         src_browse.clicked.connect(self._browse_src)
         self._src_mismatch_lbl = QLabel('*')
-        self._src_mismatch_lbl.setStyleSheet('color: red; font-weight: bold; font-size: 14px;')
+        self._src_mismatch_lbl.setStyleSheet('color: #ff4444; font-weight: bold; font-size: 14px;')
         self._src_mismatch_lbl.setToolTip(
             'Source directory does not match the current build directory\'s source'
         )
@@ -1337,7 +1337,7 @@ class SetupPanel(QWidget):
             self._src_edit.setStyleSheet('')
             self._src_mismatch_lbl.hide()
         else:
-            self._src_edit.setStyleSheet('color: #cc0000;')
+            self._src_edit.setStyleSheet('color: #ff4444;')
             self._src_mismatch_lbl.show()
 
     def _browse_src(self):
@@ -2327,38 +2327,38 @@ class MainWindow(QMainWindow):
 def _apply_dark_theme(app):
     app.setStyle('Fusion')
     p = QPalette()
-    p.setColor(QPalette.Window,          QColor(53, 53, 53))
+    p.setColor(QPalette.Window,          QColor(23, 32, 64))
     p.setColor(QPalette.WindowText,      Qt.white)
-    p.setColor(QPalette.Base,            QColor(28, 28, 28))
-    p.setColor(QPalette.AlternateBase,   QColor(53, 53, 53))
+    p.setColor(QPalette.Base,            QColor(13, 20, 42))
+    p.setColor(QPalette.AlternateBase,   QColor(23, 32, 64))
     p.setColor(QPalette.ToolTipBase,     Qt.black)
     p.setColor(QPalette.ToolTipText,     Qt.white)
     p.setColor(QPalette.Text,            Qt.white)
-    p.setColor(QPalette.Button,          QColor(53, 53, 53))
+    p.setColor(QPalette.Button,          QColor(23, 32, 64))
     p.setColor(QPalette.ButtonText,      Qt.white)
     p.setColor(QPalette.BrightText,      Qt.red)
     p.setColor(QPalette.Link,            QColor(42, 130, 218))
     p.setColor(QPalette.Highlight,       QColor(42, 130, 218))
     p.setColor(QPalette.HighlightedText, Qt.black)
-    p.setColor(QPalette.Disabled, QPalette.Text,       QColor(128, 128, 128))
-    p.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(128, 128, 128))
+    p.setColor(QPalette.Disabled, QPalette.Text,       QColor(100, 120, 160))
+    p.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(100, 120, 160))
     app.setPalette(p)
     app.setStyleSheet("""
         QTableView {
-            gridline-color: #666666;
+            gridline-color: #2e4a7a;
         }
         QHeaderView::section {
-            background-color: #3a3a3a;
-            border: 1px solid #555555;
+            background-color: #1e2e5c;
+            border: 1px solid #2e4a7a;
             padding: 4px;
         }
         QCheckBox::indicator,
         QListView::indicator {
             width: 15px;
             height: 15px;
-            border: 2px solid #888888;
+            border: 2px solid #4a6aaa;
             border-radius: 3px;
-            background: #1c1c1c;
+            background: #0d142a;
         }
         QCheckBox::indicator:checked,
         QListView::indicator:checked {
@@ -2367,10 +2367,10 @@ def _apply_dark_theme(app):
         }
         QCheckBox::indicator:unchecked:hover,
         QListView::indicator:unchecked:hover {
-            border-color: #aaaaaa;
+            border-color: #8ec6f0;
         }
         QMainWindow::separator {
-            background: #555555;
+            background: #2e4a7a;
             width: 3px;
             height: 3px;
         }
@@ -2378,21 +2378,21 @@ def _apply_dark_theme(app):
             background: #8ec6f0;
         }
         QTabBar::tab {
-            background: #2a2a2a;
-            color: #aaaaaa;
+            background: #0f1835;
+            color: #8a9cc0;
             padding: 4px 14px;
-            border: 1px solid #444444;
+            border: 1px solid #1e2e5c;
             border-bottom: none;
         }
         QTabBar::tab:selected {
-            background: #3a3a3a;
+            background: #1e2e5c;
             color: #ffffff;
             border-top: 2px solid #8ec6f0;
             font-weight: bold;
         }
         QTabBar::tab:hover:!selected {
-            background: #333333;
-            color: #cccccc;
+            background: #152240;
+            color: #b0c4e0;
         }
     """)
 
