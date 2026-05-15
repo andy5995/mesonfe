@@ -1,0 +1,27 @@
+# French translation for mesonfe
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr\n"
+
+msgid "Apply"
+msgstr "Appliquer"
+
+msgid "Run meson setup"
+msgstr "Exécuter meson setup"
+
+msgid "Open Build Directory…"
+msgstr "Ouvrir un répertoire de build…"
+
+msgid ""
+"No build directory loaded.\n"
+"Open one via the File menu, or use the Setup tab to run meson setup."
+msgstr ""
+"Aucun répertoire de build chargé.\n"
+"Ouvrez-en un via le menu Fichier ou utilisez l'onglet Configuration pour exécuter meson setup."
+
+msgid "No build directory"
+msgstr "Aucun répertoire de build"
+
+msgid "Source dir differs from loaded build — other tabs disabled"
+msgstr "Le répertoire source diffère du build chargé — autres onglets désactivés"

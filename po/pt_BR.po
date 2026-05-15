@@ -1,0 +1,27 @@
+# Brazilian Portuguese translation for mesonfe
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: pt_BR\n"
+
+msgid "Apply"
+msgstr "Aplicar"
+
+msgid "Run meson setup"
+msgstr "Executar meson setup"
+
+msgid "Open Build Directory…"
+msgstr "Abrir diretório de build…"
+
+msgid ""
+"No build directory loaded.\n"
+"Open one via the File menu, or use the Setup tab to run meson setup."
+msgstr ""
+"Nenhum diretório de build carregado.\n"
+"Abra um pelo menu Arquivo ou use a aba Configuração para executar meson setup."
+
+msgid "No build directory"
+msgstr "Nenhum diretório de build"
+
+msgid "Source dir differs from loaded build — other tabs disabled"
+msgstr "O diretório de origem difere do build carregado — outras abas desativadas"

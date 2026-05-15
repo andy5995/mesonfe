@@ -32,6 +32,7 @@ _version_py = configure_file(
         'VERSION': meson.project_version(),
         'APP_NAME': _app_name,
         'PKGDATADIR': get_option('prefix') / _pkgdatadir,
+        'LOCALEDIR': get_option('prefix') / get_option('localedir'),
         'URL': 'https://github.com/andy5995/mesonfe',
     },
 )
@@ -59,6 +60,8 @@ configure_file(
     install: true,
     install_dir: get_option('datadir') / 'applications',
 )
+
+subdir('po')
 
 gnome = import('gnome')
 gnome.post_install(

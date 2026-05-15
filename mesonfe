@@ -20,13 +20,17 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
 from platformdirs import user_config_dir
+import gettext as _gettext
+
+_ = _gettext.gettext
 
 try:
-    from mesonfe._version import VERSION, APP_NAME, PKGDATADIR as _PKGDATADIR, URL as _URL
+    from mesonfe._version import VERSION, APP_NAME, PKGDATADIR as _PKGDATADIR, LOCALEDIR as _LOCALEDIR, URL as _URL
 except ImportError:
     VERSION = 'unknown'
     APP_NAME = 'MesonFE'
     _PKGDATADIR = None
+    _LOCALEDIR = None
     _URL = 'https://github.com/andy5995/mesonfe'
 
 _APP_TITLE = f'{APP_NAME} {VERSION}' if VERSION != 'unknown' else APP_NAME
@@ -405,7 +409,7 @@ class KeybindingsDialog(QDialog):
         reset_btn.clicked.connect(self._reset)
         ok_btn = QPushButton('OK')
         ok_btn.clicked.connect(self.accept)
-        apply_btn = QPushButton('Apply')
+        apply_btn = QPushButton(_('Apply'))
         apply_btn.clicked.connect(lambda: self.applied.emit(self.get_shortcuts()))
         cancel_btn = QPushButton('Cancel')
         cancel_btn.clicked.connect(self.reject)
@@ -1339,7 +1343,7 @@ class SetupPanel(QWidget):
         rc_row.addStretch()
         layout.addLayout(rc_row)
 
-        self._run_btn = QPushButton('Run meson setup')
+        self._run_btn = QPushButton(_('Run meson setup'))
         self._run_btn.clicked.connect(self._run)
         layout.addWidget(self._run_btn, alignment=Qt.AlignLeft)
 
@@ -1555,7 +1559,7 @@ class MainWindow(QMainWindow):
         self.resize(int(screen.width() * 0.8), int(screen.height() * 0.8))
 
         file_menu = self.menuBar().addMenu('File')
-        self._open_action = file_menu.addAction('Open Build Directory…')
+        self._open_action = file_menu.addAction(_('Open Build Directory…'))
         self._open_action.triggered.connect(self._open_build_dir)
         self._open_project_action = file_menu.addAction('Open Project Directory…')
         self._open_project_action.triggered.connect(self._open_project_dir)
@@ -1761,11 +1765,11 @@ class MainWindow(QMainWindow):
             self._rebuild()
         else:
             placeholder = QWidget()
-            lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory… or run meson setup from the Setup tab.')
+            lbl = QLabel(_('No build directory loaded.\nOpen one via the File menu, or use the Setup tab to run meson setup.'))
             lbl.setAlignment(Qt.AlignCenter)
             QVBoxLayout(placeholder).addWidget(lbl)
             self._set_build_options_widget(placeholder)
-            self._status_label.setText('No build directory')
+            self._status_label.setText(_('No build directory'))
             self._set_tabs_enabled(False)
 
         self._restore_window_state()
@@ -2017,7 +2021,7 @@ class MainWindow(QMainWindow):
         ok_btn = QPushButton('OK')
         ok_btn.setDefault(True)
         ok_btn.clicked.connect(lambda: (_apply_prefs(), dlg.accept()))
-        apply_btn = QPushButton('Apply')
+        apply_btn = QPushButton(_('Apply'))
         apply_btn.clicked.connect(_apply_prefs)
         cancel_btn = QPushButton('Cancel')
         cancel_btn.clicked.connect(dlg.reject)
@@ -2171,14 +2175,14 @@ class MainWindow(QMainWindow):
         self._setup_panel.set_project_dir(self._project_dir or source_dir, force=True)
         self._setup_panel.set_build_src_dir(None)
         self.setWindowTitle(_make_window_title())
-        self._status_label.setText('No build directory')
+        self._status_label.setText(_('No build directory'))
         self._open_terminal_action.setEnabled(False)
         self._open_filemanager_action.setEnabled(False)
         self._reconfigure_action.setEnabled(False)
         self._wipe_action.setEnabled(False)
         self._remove_builddir_action.setEnabled(False)
         placeholder = QWidget()
-        lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory…')
+        lbl = QLabel(_('No build directory loaded.\nOpen one via the File menu, or use the Setup tab to run meson setup.'))
         lbl.setAlignment(Qt.AlignCenter)
         QVBoxLayout(placeholder).addWidget(lbl)
         self._set_build_options_widget(placeholder)
@@ -2237,7 +2241,7 @@ class MainWindow(QMainWindow):
         else:
             self._set_tabs_enabled(False)
             self._tabs.setCurrentWidget(self._setup_panel)
-            self._status_label.setText('Source dir differs from loaded build — other tabs disabled')
+            self._status_label.setText(_('Source dir differs from loaded build — other tabs disabled'))
 
     def _on_setup_done(self, bld_path: str):
         self._load_builddir(Path(bld_path))
@@ -2248,13 +2252,13 @@ class MainWindow(QMainWindow):
             self._source_dir = None
             self._setup_panel.set_build_src_dir(None)
             self.setWindowTitle(_make_window_title())
-            self._status_label.setText('No build directory')
+            self._status_label.setText(_('No build directory'))
             self._open_terminal_action.setEnabled(False)
             self._reconfigure_action.setEnabled(False)
             self._wipe_action.setEnabled(False)
             self._remove_builddir_action.setEnabled(False)
             placeholder = QWidget()
-            lbl = QLabel('No build directory loaded.\nUse File → Open Build Directory… or run meson setup from the Setup tab.')
+            lbl = QLabel(_('No build directory loaded.\nOpen one via the File menu, or use the Setup tab to run meson setup.'))
             lbl.setAlignment(Qt.AlignCenter)
             QVBoxLayout(placeholder).addWidget(lbl)
             self._set_build_options_widget(placeholder)
@@ -2539,6 +2543,11 @@ def _apply_dark_theme(app, check_icon_path: str = ''):
 def main():
     ensure_default_mesonferc()
     app = QApplication(sys.argv)
+
+    _locale_dir = _LOCALEDIR or str(Path(__file__).parent / 'po')
+    _gettext.bindtextdomain('mesonfe', _locale_dir)
+    _gettext.textdomain('mesonfe')
+
     _apply_dark_theme(app, _ensure_check_icon())
     icon = QIcon.fromTheme('mesonfe')
     if icon.isNull():
