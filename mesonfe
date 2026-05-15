@@ -579,7 +579,7 @@ class TranslationsDialog(QDialog):
         if not potfiles.exists():
             self._append(f'No po/POTFILES found in {self._source_dir}\n')
             return
-        sources = [l.strip() for l in potfiles.read_text().splitlines() if l.strip()]
+        sources = [line.strip() for line in potfiles.read_text().splitlines() if line.strip()]
         pot_out = self._po_dir / f'{self._source_dir.name}.pot'
         self._queue = [(
             'xgettext',

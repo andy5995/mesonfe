@@ -80,3 +80,13 @@ if pytest.found()
         workdir: meson.project_source_root(),
     )
 endif
+
+ruff = find_program('ruff', required: false)
+if ruff.found()
+    test(
+        'ruff',
+        ruff,
+        args: ['check', 'mesonfe'],
+        workdir: meson.project_source_root(),
+    )
+endif
