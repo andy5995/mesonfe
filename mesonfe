@@ -419,12 +419,14 @@ class MesonSetupDialog(QDialog):
         )
         self._proc.finished.connect(self._on_finished)
         self._line_buf = ['']
+        self.exit_code = None
         self._proc.start('meson', args)
 
     def _append(self, text: str):
         _append_highlighted(self._out, text, self._line_buf)
 
     def _on_finished(self, code: int, _status):
+        self.exit_code = code
         self._append(f'\n[exited {code}]\n')
         self._btn.setEnabled(True)
 
@@ -1910,12 +1912,17 @@ class MainWindow(QMainWindow):
         settings['tree_pane_visible'] = visible
         save_settings(settings)
 
-    def _run_reconfigure(self):
-        args = ['setup', '--reconfigure', str(self._source_dir), str(self._builddir)]
+    def _run_meson_setup(self, args: list, builddir: Path):
         dlg = MesonSetupDialog(self, args, self._output_font_size)
         dlg.exec_()
-        if _is_build_dir(self._builddir):
-            self._load_builddir(self._builddir)
+        if dlg.exit_code == 0 and _is_build_dir(builddir):
+            self._load_builddir(builddir)
+
+    def _run_reconfigure(self):
+        self._run_meson_setup(
+            ['setup', '--reconfigure', str(self._source_dir), str(self._builddir)],
+            self._builddir,
+        )
 
     def _run_wipe(self):
         reply = QMessageBox.question(
@@ -1925,11 +1932,10 @@ class MainWindow(QMainWindow):
         )
         if reply != QMessageBox.Yes:
             return
-        args = ['setup', '--wipe', str(self._source_dir), str(self._builddir)]
-        dlg = MesonSetupDialog(self, args, self._output_font_size)
-        dlg.exec_()
-        if _is_build_dir(self._builddir):
-            self._load_builddir(self._builddir)
+        self._run_meson_setup(
+            ['setup', '--wipe', str(self._source_dir), str(self._builddir)],
+            self._builddir,
+        )
 
     @staticmethod
     def _make_reconfigure_icon(size: int = 16) -> QIcon:
@@ -2049,10 +2055,7 @@ class MainWindow(QMainWindow):
         has_build = (builddir / 'meson-info').exists()
         args = (['setup', str(source_dir), str(builddir)] +
                 (['--reconfigure'] + d_args if has_build else d_args))
-        dlg = MesonSetupDialog(self, args, self._output_font_size)
-        dlg.exec_()
-        if _is_build_dir(builddir):
-            self._load_builddir(builddir)
+        self._run_meson_setup(args, builddir)
 
     def _refresh_recent_menu(self):
         self._recent_menu.clear()
