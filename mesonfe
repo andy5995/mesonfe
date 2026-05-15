@@ -1248,9 +1248,14 @@ class SetupPanel(QWidget):
             'Source directory does not match the current build directory\'s source'
         )
         self._src_mismatch_lbl.hide()
+        self._use_build_src_btn = QPushButton('Use build source')
+        self._use_build_src_btn.setToolTip('Reset to the source directory of the current build')
+        self._use_build_src_btn.clicked.connect(self._reset_to_build_src)
+        self._use_build_src_btn.hide()
         src_row.addWidget(self._src_edit)
         src_row.addWidget(src_browse)
         src_row.addWidget(self._src_mismatch_lbl)
+        src_row.addWidget(self._use_build_src_btn)
         form.addRow('Source directory:', src_row)
 
         bld_row = QHBoxLayout()
@@ -1327,6 +1332,7 @@ class SetupPanel(QWidget):
         if not self._build_src_dir:
             self._src_edit.setStyleSheet('')
             self._src_mismatch_lbl.hide()
+            self._use_build_src_btn.hide()
             return
         current = self._src_edit.text().strip()
         try:
@@ -1337,9 +1343,15 @@ class SetupPanel(QWidget):
         if match:
             self._src_edit.setStyleSheet('')
             self._src_mismatch_lbl.hide()
+            self._use_build_src_btn.hide()
         else:
             self._src_edit.setStyleSheet('color: #ff4444;')
             self._src_mismatch_lbl.show()
+            self._use_build_src_btn.show()
+
+    def _reset_to_build_src(self):
+        if self._build_src_dir:
+            self._src_edit.setText(str(self._build_src_dir))
 
     def _browse_src(self):
         start = self._src_edit.text() or ''
