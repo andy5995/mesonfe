@@ -295,6 +295,18 @@ def _ensure_check_icon() -> str:
     return str(path)
 
 
+def _ensure_arrow_icon() -> str:
+    path = Path(user_config_dir('mesonfe')) / 'arrow_down.svg'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8">'
+        '<polyline points="1,2 4,6 7,2" fill="none" stroke="#8ec6f0" '
+        'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+        '</svg>'
+    )
+    return str(path)
+
+
 def save_json_file(path: Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2))
@@ -2398,7 +2410,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, 'Error', result.stderr or result.stdout or 'meson configure failed')
 
 
-def _apply_dark_theme(app, check_icon_path: str = ''):
+def _apply_dark_theme(app, check_icon_path: str = '', arrow_icon_path: str = ''):
     app.setStyle('Fusion')
     p = QPalette()
     p.setColor(QPalette.Window,          QColor(23, 32, 64))
@@ -2494,13 +2506,9 @@ def _apply_dark_theme(app, check_icon_path: str = ''):
             border-bottom-right-radius: 3px;
         }
         QComboBox::down-arrow {
+            image: url(ARROW_ICON_PATH);
             width: 8px;
             height: 8px;
-            border: 2px solid #8ec6f0;
-            border-top: none;
-            border-left: none;
-            transform: rotate(45deg);
-            margin-top: -4px;
         }
         QComboBox QAbstractItemView {
             background: #0f1835;
@@ -2537,7 +2545,8 @@ def _apply_dark_theme(app, check_icon_path: str = ''):
             color: #4a5a80;
             border-color: #1a2448;
         }
-    """.replace('CHECK_ICON_PATH', check_icon_path))
+    """.replace('CHECK_ICON_PATH', check_icon_path)
+       .replace('ARROW_ICON_PATH', arrow_icon_path))
 
 
 def main():
@@ -2548,7 +2557,7 @@ def main():
     _gettext.bindtextdomain('mesonfe', _locale_dir)
     _gettext.textdomain('mesonfe')
 
-    _apply_dark_theme(app, _ensure_check_icon())
+    _apply_dark_theme(app, _ensure_check_icon(), _ensure_arrow_icon())
     icon = QIcon.fromTheme('mesonfe')
     if icon.isNull():
         for _p in [
