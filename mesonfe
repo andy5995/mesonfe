@@ -279,6 +279,18 @@ def load_shortcuts() -> dict:
     return {}
 
 
+def _ensure_check_icon() -> str:
+    path = Path(user_config_dir('mesonfe')) / 'checkbox_check.svg'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12">'
+        '<polyline points="2,9 5,11 10,2" stroke="black" stroke-width="2.5" '
+        'fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
+        '</svg>'
+    )
+    return str(path)
+
+
 def save_json_file(path: Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2))
@@ -2361,7 +2373,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, 'Error', result.stderr or result.stdout or 'meson configure failed')
 
 
-def _apply_dark_theme(app):
+def _apply_dark_theme(app, check_icon_path: str = ''):
     app.setStyle('Fusion')
     p = QPalette()
     p.setColor(QPalette.Window,          QColor(23, 32, 64))
@@ -2401,6 +2413,7 @@ def _apply_dark_theme(app):
         QListView::indicator:checked {
             background: #2a82da;
             border-color: #2a82da;
+            image: url(CHECK_ICON_PATH);
         }
         QCheckBox::indicator:unchecked:hover,
         QListView::indicator:unchecked:hover {
@@ -2499,13 +2512,13 @@ def _apply_dark_theme(app):
             color: #4a5a80;
             border-color: #1a2448;
         }
-    """)
+    """.replace('CHECK_ICON_PATH', check_icon_path))
 
 
 def main():
     ensure_default_mesonferc()
     app = QApplication(sys.argv)
-    _apply_dark_theme(app)
+    _apply_dark_theme(app, _ensure_check_icon())
     icon = QIcon.fromTheme('mesonfe')
     if icon.isNull():
         for _p in [
