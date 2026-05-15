@@ -22,13 +22,14 @@ from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, Q
 from platformdirs import user_config_dir
 
 try:
-    from mesonfe._version import VERSION, PKGDATADIR as _PKGDATADIR, URL as _URL
+    from mesonfe._version import VERSION, APP_NAME, PKGDATADIR as _PKGDATADIR, URL as _URL
 except ImportError:
     VERSION = 'unknown'
+    APP_NAME = 'MesonFE'
     _PKGDATADIR = None
     _URL = 'https://github.com/andy5995/mesonfe'
 
-_APP_TITLE = f'mesonfe {VERSION}' if VERSION != 'unknown' else 'mesonfe'
+_APP_TITLE = f'{APP_NAME} {VERSION}' if VERSION != 'unknown' else APP_NAME
 
 
 def _make_window_title(project_name=None):
@@ -2261,8 +2262,8 @@ class MainWindow(QMainWindow):
     def _show_about(self):
         QMessageBox.about(
             self,
-            'About mesonfe',
-            f'<b>mesonfe</b> {"v" + VERSION if VERSION != "unknown" else "(development)"}<br>'
+            f'About {APP_NAME}',
+            f'<b>{APP_NAME}</b> {"v" + VERSION if VERSION != "unknown" else "(development)"}<br>'
             'A PyQt5 GUI frontend for Meson build options.<br><br>'
             f'<a href="{_URL}">{_URL}</a><br><br>'
             'License: MIT<br><br>'

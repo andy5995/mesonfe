@@ -23,11 +23,14 @@ py = import('python').find_installation(
 
 _pkgdatadir = get_option('datadir') / meson.project_name()
 
+_app_name = 'MesonFE'
+
 _version_py = configure_file(
     input: 'src/mesonfe/_version.py.in',
     output: '_version.py',
     configuration: {
         'VERSION': meson.project_version(),
+        'APP_NAME': _app_name,
         'PKGDATADIR': get_option('prefix') / _pkgdatadir,
         'URL': 'https://github.com/andy5995/mesonfe',
     },
@@ -52,7 +55,7 @@ install_data(
 configure_file(
     input: 'data/mesonfe.desktop.in',
     output: '@0@.desktop'.format(meson.project_name()),
-    configuration: {'NAME': meson.project_name()},
+    configuration: {'NAME': meson.project_name(), 'APP_NAME': _app_name},
     install: true,
     install_dir: get_option('datadir') / 'applications',
 )

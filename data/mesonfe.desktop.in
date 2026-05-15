@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=@NAME@
+Name=@APP_NAME@
 Comment=GUI frontend for the Meson build system
 Exec=@NAME@
 Icon=@NAME@
