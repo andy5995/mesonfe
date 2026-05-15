@@ -1,8 +1,9 @@
 # mesonfe
 
-A PyQt5 GUI frontend for the [Meson](https://mesonbuild.com/) build system.
-Browse and edit build options, run compile and install steps, and execute test
-suites — all without leaving a graphical interface.
+PyQt5 GUI frontend for the [Meson](https://mesonbuild.com/) build system.
+Intended for developers already familiar with Meson. Supports viewing and
+editing build options, per-project user-configurable presets, running compile
+and install steps and executing test suites.
 
 ## Disclaimer
 
