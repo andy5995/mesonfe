@@ -1,5 +1,7 @@
 project('mesonfe', version: '0.0.1', license: 'MIT', meson_version: '>= 0.59.0')
 
+_app_name = 'MesonFE'
+
 install_data(
     meson.project_name(),
     install_dir: get_option('bindir'),
@@ -22,8 +24,6 @@ py = import('python').find_installation(
 )
 
 _pkgdatadir = get_option('datadir') / meson.project_name()
-
-_app_name = 'MesonFE'
 
 _version_py = configure_file(
     input: 'src/mesonfe/_version.py.in',
