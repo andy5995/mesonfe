@@ -1222,6 +1222,7 @@ class BuildFilesPanel(QWidget):
 class SetupPanel(QWidget):
     setup_done = pyqtSignal(str)  # emits absolute build dir path on success
     build_dir_removed = pyqtSignal(str)  # emits absolute build dir path after deletion
+    source_dir_changed = pyqtSignal(str)  # emits text of source dir field on each change
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1238,6 +1239,7 @@ class SetupPanel(QWidget):
         self._src_edit.setPlaceholderText('Project source directory')
         self._src_edit.textChanged.connect(self._check_src_mismatch)
         self._src_edit.textChanged.connect(self._update_delete_btn)
+        self._src_edit.textChanged.connect(self.source_dir_changed)
         src_browse = QPushButton('Browse…')
         src_browse.clicked.connect(self._browse_src)
         self._src_mismatch_lbl = QLabel('*')
@@ -1602,6 +1604,7 @@ class MainWindow(QMainWindow):
         self._setup_panel = SetupPanel()
         self._setup_panel.setup_done.connect(self._on_setup_done)
         self._setup_panel.build_dir_removed.connect(self._on_setup_build_dir_removed)
+        self._setup_panel.source_dir_changed.connect(self._on_setup_source_dir_changed)
         self._tree_panel = BuildFilesPanel()
         self._tree_panel.close_requested.connect(
             lambda: self._tree_action.setChecked(False)
@@ -1632,6 +1635,7 @@ class MainWindow(QMainWindow):
             self._tree_panel.hide()
 
         self._tabs = QTabWidget()
+        self._tabs.setStyleSheet('QTabBar::tab:disabled { color: gray; }')
         self._main_splitter.addWidget(self._tabs)
         self._main_splitter.setStretchFactor(0, 0)
         self._main_splitter.setStretchFactor(1, 1)
@@ -2162,6 +2166,20 @@ class MainWindow(QMainWindow):
         self._setup_panel.set_project_dir(self._project_dir, force=True)
         self._update_setup_tab_state()
         self._tabs.setCurrentWidget(self._setup_panel)
+
+    def _on_setup_source_dir_changed(self, text: str):
+        if not self._builddir or not self._source_dir:
+            return
+        try:
+            match = (Path(text).resolve(strict=False) ==
+                     self._source_dir.resolve(strict=False))
+        except Exception:
+            match = False
+        if match:
+            self._set_tabs_enabled(True)
+        else:
+            self._set_tabs_enabled(False)
+            self._tabs.setCurrentWidget(self._setup_panel)
 
     def _on_setup_done(self, bld_path: str):
         self._load_builddir(Path(bld_path))
