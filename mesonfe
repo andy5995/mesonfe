@@ -272,6 +272,7 @@ _DEFAULT_SHORTCUTS = {
     'help_meson_docs':     '',
     'tools_open_terminal':     'Ctrl+Alt+T',
     'tools_open_filemanager':  '',
+    'tools_translations':      '',
     'view_toolbar':        '',
 }
 
@@ -506,6 +507,103 @@ class MesonSetupDialog(QDialog):
         self.exit_code = code
         self._append(f'\n[exited {code}]\n')
         self._btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        if self._proc.state() != QProcess.NotRunning:
+            self._proc.kill()
+            self._proc.waitForFinished(2000)
+        super().closeEvent(event)
+
+
+class TranslationsDialog(QDialog):
+    def __init__(self, parent, source_dir: str, font_size: int = _DEFAULT_OUTPUT_FONT_SIZE):
+        super().__init__(parent)
+        self._source_dir = Path(source_dir)
+        self._po_dir = self._source_dir / 'po'
+        self._queue = []
+        self._line_buf = ['']
+        self.setWindowTitle('Translations')
+        self.resize(720, 480)
+        layout = QVBoxLayout(self)
+        self._out = QTextEdit()
+        self._out.setReadOnly(True)
+        self._out.setFont(QFont('monospace', font_size))
+        layout.addWidget(self._out)
+        btns = QHBoxLayout()
+        self._pot_btn = QPushButton('Generate .pot')
+        self._pot_btn.clicked.connect(self._generate_pot)
+        self._update_btn = QPushButton('Update .po files')
+        self._update_btn.clicked.connect(self._update_po)
+        self._close_btn = QPushButton('Close')
+        self._close_btn.clicked.connect(self.accept)
+        btns.addWidget(self._pot_btn)
+        btns.addWidget(self._update_btn)
+        btns.addStretch()
+        btns.addWidget(self._close_btn)
+        layout.addLayout(btns)
+        self._proc = QProcess(self)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyRead.connect(
+            lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
+        )
+        self._proc.finished.connect(self._on_finished)
+
+    def _append(self, text: str):
+        _append_highlighted(self._out, text, self._line_buf)
+
+    def _set_running(self, running: bool):
+        self._pot_btn.setEnabled(not running)
+        self._update_btn.setEnabled(not running)
+        self._close_btn.setEnabled(not running)
+
+    def _run_next(self):
+        if not self._queue:
+            self._set_running(False)
+            return
+        prog, args, cwd = self._queue.pop(0)
+        self._append(f'$ {prog} {" ".join(args)}\n')
+        self._proc.setWorkingDirectory(str(cwd))
+        self._proc.start(prog, args)
+
+    def _on_finished(self, code: int, _status):
+        self._append(f'[exited {code}]\n\n')
+        if code != 0:
+            self._queue.clear()
+            self._set_running(False)
+        else:
+            self._run_next()
+
+    def _generate_pot(self):
+        potfiles = self._po_dir / 'POTFILES'
+        if not potfiles.exists():
+            self._append(f'No po/POTFILES found in {self._source_dir}\n')
+            return
+        sources = [l.strip() for l in potfiles.read_text().splitlines() if l.strip()]
+        pot_out = self._po_dir / f'{self._source_dir.name}.pot'
+        self._queue = [(
+            'xgettext',
+            ['--language=Python', '--keyword=_', '--add-comments',
+             f'--output={pot_out}'] + sources,
+            self._source_dir,
+        )]
+        self._set_running(True)
+        self._run_next()
+
+    def _update_po(self):
+        pot = next(self._po_dir.glob('*.pot'), None)
+        if pot is None:
+            self._append('No .pot file found — generate it first.\n')
+            return
+        po_files = sorted(self._po_dir.glob('*.po'))
+        if not po_files:
+            self._append('No .po files found.\n')
+            return
+        self._queue = [
+            ('msgmerge', ['--update', str(po), str(pot)], self._source_dir)
+            for po in po_files
+        ]
+        self._set_running(True)
+        self._run_next()
 
     def closeEvent(self, event):
         if self._proc.state() != QProcess.NotRunning:
@@ -1655,6 +1753,9 @@ class MainWindow(QMainWindow):
         tools_menu.addAction(self._wipe_action)
         tools_menu.addAction(self._remove_builddir_action)
         tools_menu.addAction(self._tree_action)
+        tools_menu.addSeparator()
+        self._translations_action = tools_menu.addAction('Translations…')
+        self._translations_action.triggered.connect(self._open_translations)
 
         view_menu = self.menuBar().addMenu('View')
 
@@ -1765,6 +1866,7 @@ class MainWindow(QMainWindow):
             'help_meson_docs':   ('Meson Documentation',              self._meson_docs_action),
             'tools_open_terminal':    ('Open Terminal…',       self._open_terminal_action),
             'tools_open_filemanager': ('Open File Manager…',  self._open_filemanager_action),
+            'tools_translations':     ('Translations…',        self._translations_action),
             'view_toolbar':        ('Show Toolbar',                   self._toolbar_view_action),
         }
         self._apply_shortcuts(load_shortcuts())
@@ -2384,6 +2486,15 @@ class MainWindow(QMainWindow):
             except (FileNotFoundError, OSError):
                 pass
         QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+
+    def _open_translations(self):
+        source_dir = self._source_dir or (
+            str(self._builddir.parent) if self._builddir else None
+        )
+        if not source_dir:
+            return
+        dlg = TranslationsDialog(self, source_dir, self._output_font_size)
+        dlg.exec_()
 
     def _apply(self):
         defs = []
