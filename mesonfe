@@ -2685,7 +2685,7 @@ class MainWindow(QMainWindow):
             f'<b>{APP_NAME}</b> {ver}<br>'
             + _('A PyQt5 GUI frontend for Meson build options.') + '<br><br>'
             + f'<a href="{_URL}">{_URL}</a><br><br>'
-            + 'License: MIT<br><br>'
+            + 'License: GPL-3.0-or-later<br><br>'
             # TRANSLATORS: keep the <a href="%s">…</a> HTML tags intact;
             # %s is replaced by the Meson project URL at runtime
             + '<i>' + _('Disclaimer: This project is not affiliated with or endorsed by the '
