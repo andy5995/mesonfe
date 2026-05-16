@@ -1708,7 +1708,7 @@ class SetupPanel(QWidget):
             QMessageBox.warning(self.window(), 'Missing fields',
                                 'Source and build directories are required.')
             return
-        args = ['setup', bld] + self._args_edit.text().split()
+        args = ['setup', '--reconfigure', bld] + self._args_edit.text().split()
         self._out.clear()
         self._line_buf = ['']
         self._run_btn.setEnabled(False)
