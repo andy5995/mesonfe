@@ -692,6 +692,8 @@ class CompilePanel(QWidget):
     def _on_finished(self, code: int, _status):
         self._append(f'\n[exited {code}]\n')
         self._run_btn.setEnabled(True)
+        if code == 0 and self._clean.isChecked():
+            self._clean.setChecked(False)
 
     def closeEvent(self, event):
         if self._proc.state() != QProcess.NotRunning:
