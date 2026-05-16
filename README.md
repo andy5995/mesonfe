@@ -5,6 +5,8 @@ Intended for developers already familiar with Meson. Supports viewing and
 editing build options, per-project user-configurable presets, running compile
 and install steps and executing test suites.
 
+* [Downloads](https://github.com/andy5995/mesonfe/releases/latest)
+
 ## Disclaimer
 
 This project is not affiliated with or endorsed by the Meson project or its
