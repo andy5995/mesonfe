@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QListWidget, QListWidgetItem, QCheckBox, QFileDialog, QSpinBox,
     QKeySequenceEdit, QAction, QSplitter, QTabWidget, QTabBar,
     QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QFrame,
+    QRadioButton, QButtonGroup,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
@@ -298,12 +299,12 @@ def _ensure_check_icon() -> str:
     return str(path)
 
 
-def _ensure_arrow_icon() -> str:
-    path = Path(user_config_dir('mesonfe')) / 'arrow_down.svg'
+def _ensure_arrow_icon(color: str = '#8ec6f0', filename: str = 'arrow_down.svg') -> str:
+    path = Path(user_config_dir('mesonfe')) / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8">'
-        '<polyline points="1,2 4,6 7,2" fill="none" stroke="#8ec6f0" '
+        f'<polyline points="1,2 4,6 7,2" fill="none" stroke="{color}" '
         'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
         '</svg>'
     )
@@ -451,6 +452,11 @@ _HL_NOTE            = re.compile(r'\bnote\b', re.IGNORECASE)
 _HL_EXIT            = re.compile(r'^\[exited (\d+)\]')
 _HL_UNINSTALL_FAIL  = re.compile(r'^(Failed:\s+[1-9]|Could not delete\b)', re.IGNORECASE)
 
+_OUT_COLOR_OK    = '#90ee90'
+_OUT_COLOR_ERROR = '#ff6b6b'
+_OUT_COLOR_WARN  = '#f0c060'
+_OUT_COLOR_NOTE  = '#87ceeb'
+
 
 def _append_highlighted(out, text, buf):
     combined = buf[0] + text
@@ -467,13 +473,13 @@ def _append_highlighted(out, text, buf):
         fmt = QTextCharFormat()
         m = _HL_EXIT.match(line.strip())
         if m:
-            fmt.setForeground(QColor('#90ee90' if m.group(1) == '0' else '#ff6b6b'))
+            fmt.setForeground(QColor(_OUT_COLOR_OK if m.group(1) == '0' else _OUT_COLOR_ERROR))
         elif _HL_UNINSTALL_FAIL.match(line.strip()) or _HL_ERROR.search(line) or 'FAILED' in line:
-            fmt.setForeground(QColor('#ff6b6b'))
+            fmt.setForeground(QColor(_OUT_COLOR_ERROR))
         elif _HL_WARN.search(line):
-            fmt.setForeground(QColor('#f0c060'))
+            fmt.setForeground(QColor(_OUT_COLOR_WARN))
         elif _HL_NOTE.search(line):
-            fmt.setForeground(QColor('#87ceeb'))
+            fmt.setForeground(QColor(_OUT_COLOR_NOTE))
         cursor.insertText(line + '\n', fmt)
     out.setTextCursor(cursor)
     out.ensureCursorVisible()
@@ -2145,8 +2151,25 @@ class MainWindow(QMainWindow):
         form.addWidget(spin)
         layout.addLayout(form)
 
-        reopen_chk = QCheckBox('Reopen last build directory on startup')
         _settings = load_settings()
+
+        theme_row = QHBoxLayout()
+        theme_row.addWidget(QLabel('Theme:'))
+        theme_grp = QButtonGroup(dlg)
+        _auto_rb  = QRadioButton('Auto')
+        _light_rb = QRadioButton('Light')
+        _dark_rb  = QRadioButton('Dark')
+        theme_grp.addButton(_auto_rb,  0)
+        theme_grp.addButton(_light_rb, 1)
+        theme_grp.addButton(_dark_rb,  2)
+        {'auto': _auto_rb, 'light': _light_rb, 'dark': _dark_rb}.get(
+            _settings.get('theme', 'auto'), _auto_rb).setChecked(True)
+        for _rb in (_auto_rb, _light_rb, _dark_rb):
+            theme_row.addWidget(_rb)
+        theme_row.addStretch()
+        layout.addLayout(theme_row)
+
+        reopen_chk = QCheckBox('Reopen last build directory on startup')
         reopen_chk.setChecked(_settings.get('reopen_last', False))
         layout.addWidget(reopen_chk)
 
@@ -2201,7 +2224,10 @@ class MainWindow(QMainWindow):
             settings['terminal'] = self._pref_terminal
             settings['editor'] = self._pref_editor
             settings['file_manager'] = self._pref_file_manager
+            new_theme = {0: 'auto', 1: 'light', 2: 'dark'}[theme_grp.checkedId()]
+            settings['theme'] = new_theme
             save_settings(settings)
+            _apply_theme(QApplication.instance(), new_theme)
 
         btns = QHBoxLayout()
         btns.addStretch()
@@ -2594,7 +2620,64 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, 'Error', result.stderr or result.stdout or 'meson configure failed')
 
 
+_SYSTEM_IS_DARK  = False
+_CHECK_ICON_PATH = ''
+_ARROW_ICON_DARK_BG  = ''
+_ARROW_ICON_LIGHT_BG = ''
+
+
+def _detect_system_dark() -> bool:
+    try:
+        result = subprocess.run(
+            ['gdbus', 'call', '--session',
+             '--dest', 'org.freedesktop.portal.Desktop',
+             '--object-path', '/org/freedesktop/portal/desktop',
+             '--method', 'org.freedesktop.portal.Settings.Read',
+             'org.freedesktop.appearance', 'color-scheme'],
+            capture_output=True, text=True, timeout=2,
+        )
+        if result.returncode == 0:
+            m = re.search(r'uint32\s+(\d+)', result.stdout)
+            if m:
+                val = int(m.group(1))
+                if val == 1:
+                    return True
+                if val == 2:
+                    return False
+    except Exception:
+        pass
+    return QApplication.palette().color(QPalette.Window).lightness() < 128
+
+
+def _setup_color_scheme_watcher():
+    try:
+        from PyQt5.QtDBus import QDBusConnection
+
+        def _on_setting_changed(namespace, key, _value):
+            global _SYSTEM_IS_DARK
+            if namespace == 'org.freedesktop.appearance' and key == 'color-scheme':
+                _SYSTEM_IS_DARK = _detect_system_dark()
+                if load_settings().get('theme', 'auto') == 'auto':
+                    _apply_theme(QApplication.instance(), 'auto')
+
+        bus = QDBusConnection.sessionBus()
+        bus.connect(
+            'org.freedesktop.portal.Desktop',
+            '/org/freedesktop/portal/desktop',
+            'org.freedesktop.portal.Settings',
+            'SettingChanged',
+            _on_setting_changed,
+        )
+    except Exception:
+        pass
+
+
 def _apply_dark_theme(app, check_icon_path: str = '', arrow_icon_path: str = ''):
+    global _OUT_COLOR_OK, _OUT_COLOR_ERROR, _OUT_COLOR_WARN, _OUT_COLOR_NOTE
+    _OUT_COLOR_OK    = '#90ee90'
+    _OUT_COLOR_ERROR = '#ff6b6b'
+    _OUT_COLOR_WARN  = '#f0c060'
+    _OUT_COLOR_NOTE  = '#87ceeb'
     app.setStyle('Fusion')
     p = QPalette()
     p.setColor(QPalette.Window,          QColor(23, 32, 64))
@@ -2638,6 +2721,20 @@ def _apply_dark_theme(app, check_icon_path: str = '', arrow_icon_path: str = '')
         }
         QCheckBox::indicator:unchecked:hover,
         QListView::indicator:unchecked:hover {
+            border-color: #8ec6f0;
+        }
+        QRadioButton::indicator {
+            width: 13px;
+            height: 13px;
+            border: 2px solid #4a6aaa;
+            border-radius: 7px;
+            background: #0d142a;
+        }
+        QRadioButton::indicator:checked {
+            background: #2a82da;
+            border-color: #2a82da;
+        }
+        QRadioButton::indicator:unchecked:hover {
             border-color: #8ec6f0;
         }
         QMainWindow::separator {
@@ -2733,7 +2830,183 @@ def _apply_dark_theme(app, check_icon_path: str = '', arrow_icon_path: str = '')
        .replace('ARROW_ICON_PATH', arrow_icon_path))
 
 
+def _apply_light_theme(app, check_icon_path: str = '', arrow_icon_path: str = ''):
+    global _OUT_COLOR_OK, _OUT_COLOR_ERROR, _OUT_COLOR_WARN, _OUT_COLOR_NOTE
+    _OUT_COLOR_OK    = '#2e7d32'
+    _OUT_COLOR_ERROR = '#c62828'
+    _OUT_COLOR_WARN  = '#b34700'
+    _OUT_COLOR_NOTE  = '#1565c0'
+    app.setStyle('Fusion')
+    p = QPalette()
+    p.setColor(QPalette.Window,          QColor(240, 240, 240))
+    p.setColor(QPalette.WindowText,      Qt.black)
+    p.setColor(QPalette.Base,            QColor(255, 255, 255))
+    p.setColor(QPalette.AlternateBase,   QColor(232, 232, 232))
+    p.setColor(QPalette.ToolTipBase,     QColor(255, 255, 220))
+    p.setColor(QPalette.ToolTipText,     Qt.black)
+    p.setColor(QPalette.Text,            Qt.black)
+    p.setColor(QPalette.Button,          QColor(212, 212, 212))
+    p.setColor(QPalette.ButtonText,      Qt.black)
+    p.setColor(QPalette.BrightText,      Qt.red)
+    p.setColor(QPalette.Link,            QColor(0, 102, 204))
+    p.setColor(QPalette.Highlight,       QColor(0, 102, 204))
+    p.setColor(QPalette.HighlightedText, Qt.white)
+    p.setColor(QPalette.Disabled, QPalette.Text,       QColor(150, 150, 150))
+    p.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(150, 150, 150))
+    app.setPalette(p)
+    app.setStyleSheet("""
+        QTableView {
+            gridline-color: #c0c0c0;
+        }
+        QHeaderView::section {
+            background-color: #d8d8d8;
+            border: 1px solid #c0c0c0;
+            padding: 4px;
+        }
+        QCheckBox::indicator,
+        QListView::indicator {
+            width: 15px;
+            height: 15px;
+            border: 2px solid #888888;
+            border-radius: 3px;
+            background: #ffffff;
+        }
+        QCheckBox::indicator:checked,
+        QListView::indicator:checked {
+            background: #0066cc;
+            border-color: #0066cc;
+            image: url(CHECK_ICON_PATH);
+        }
+        QCheckBox::indicator:unchecked:hover,
+        QListView::indicator:unchecked:hover {
+            border-color: #0066cc;
+        }
+        QRadioButton::indicator {
+            width: 13px;
+            height: 13px;
+            border: 2px solid #888888;
+            border-radius: 7px;
+            background: #ffffff;
+        }
+        QRadioButton::indicator:checked {
+            background: #0066cc;
+            border-color: #0066cc;
+        }
+        QRadioButton::indicator:unchecked:hover {
+            border-color: #0066cc;
+        }
+        QMainWindow::separator {
+            background: #c0c0c0;
+            width: 3px;
+            height: 3px;
+        }
+        QMainWindow::separator:hover {
+            background: #666666;
+        }
+        QTabBar::tab {
+            background: #d0d0d0;
+            color: #333333;
+            padding: 4px 14px;
+            border: 1px solid #b8b8b8;
+            border-bottom: none;
+        }
+        QTabBar::tab:selected {
+            background: #f0f0f0;
+            color: #000000;
+            border-top: 2px solid #0066cc;
+            font-weight: bold;
+        }
+        QTabBar::tab:hover:!selected {
+            background: #e0e0e0;
+            color: #000000;
+        }
+        QComboBox {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #ebebeb, stop:1 #cccccc);
+            color: #1a1a1a;
+            border: 1px solid #aaaaaa;
+            border-top-color: #f8f8f8;
+            border-left-color: #f8f8f8;
+            border-radius: 3px;
+            padding: 3px 8px;
+        }
+        QComboBox:hover {
+            border-top-color: #ffffff;
+            border-left-color: #ffffff;
+        }
+        QComboBox::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 20px;
+            border-left: 1px solid #aaaaaa;
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #d8d8d8, stop:1 #b8b8b8);
+            border-top-right-radius: 3px;
+            border-bottom-right-radius: 3px;
+        }
+        QComboBox::down-arrow {
+            image: url(ARROW_ICON_PATH);
+            width: 8px;
+            height: 8px;
+        }
+        QComboBox QAbstractItemView {
+            background: #ffffff;
+            color: #1a1a1a;
+            border: 1px solid #aaaaaa;
+            selection-background-color: #0066cc;
+            selection-color: #ffffff;
+        }
+        QPushButton {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #e8e8e8, stop:1 #c8c8c8);
+            color: #1a1a1a;
+            border: 1px solid #888888;
+            border-top-color: #f8f8f8;
+            border-left-color: #f8f8f8;
+            border-radius: 3px;
+            padding: 4px 12px;
+        }
+        QPushButton:hover {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #f4f4f4, stop:1 #d4d4d4);
+        }
+        QPushButton:pressed {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #c8c8c8, stop:1 #e8e8e8);
+            border-top-color: #888888;
+            border-left-color: #888888;
+            border-right-color: #f8f8f8;
+            border-bottom-color: #f8f8f8;
+        }
+        QPushButton:disabled {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #e0e0e0, stop:1 #d0d0d0);
+            color: #aaaaaa;
+            border-color: #cccccc;
+        }
+    """.replace('CHECK_ICON_PATH', check_icon_path)
+       .replace('ARROW_ICON_PATH', arrow_icon_path))
+
+
+def _apply_theme(app, theme: str):
+    if theme == 'dark':
+        use_dark = True
+    elif theme == 'light':
+        use_dark = False
+    else:
+        use_dark = _SYSTEM_IS_DARK
+    if use_dark:
+        _apply_dark_theme(app, _CHECK_ICON_PATH, _ARROW_ICON_DARK_BG)
+    else:
+        _apply_light_theme(app, _CHECK_ICON_PATH, _ARROW_ICON_LIGHT_BG)
+    for w in app.allWidgets():
+        w.style().unpolish(w)
+        w.style().polish(w)
+        w.update()
+
+
 def main():
+    global _SYSTEM_IS_DARK, _CHECK_ICON_PATH, _ARROW_ICON_DARK_BG, _ARROW_ICON_LIGHT_BG
     ensure_default_mesonferc()
     app = QApplication(sys.argv)
 
@@ -2742,7 +3015,11 @@ def main():
         _gettext.bindtextdomain('mesonfe', _locale_dir)
         _gettext.textdomain('mesonfe')
 
-    _apply_dark_theme(app, _ensure_check_icon(), _ensure_arrow_icon())
+    _SYSTEM_IS_DARK  = _detect_system_dark()
+    _CHECK_ICON_PATH = _ensure_check_icon()
+    _ARROW_ICON_DARK_BG  = _ensure_arrow_icon('#8ec6f0', 'arrow_dark_bg.svg')
+    _ARROW_ICON_LIGHT_BG = _ensure_arrow_icon('#333333', 'arrow_light_bg.svg')
+    _apply_theme(app, load_settings().get('theme', 'auto'))
     icon = QIcon.fromTheme('mesonfe')
     if icon.isNull():
         for _p in [
@@ -2761,6 +3038,7 @@ def main():
             builddir = Path(recent[0])
     win = MainWindow(builddir)
     win.show()
+    _setup_color_scheme_watcher()
     sys.exit(app.exec_())
 
 
