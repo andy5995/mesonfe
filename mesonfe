@@ -227,8 +227,9 @@ _RECENT_PROJ_PATH = Path(user_config_dir('mesonfe')) / 'recent_projects.json'
 _RECENT_MAX = 10
 
 _SHORTCUT_PATH  = Path(user_config_dir('mesonfe')) / 'keybindings.json'
-_GEOMETRY_PATH  = Path(user_config_dir('mesonfe')) / 'windowgeometry.bin'
+_GEOMETRY_PATH        = Path(user_config_dir('mesonfe')) / 'windowgeometry.bin'
 _VIEWER_GEOMETRY_PATH = Path(user_config_dir('mesonfe')) / 'viewergeometry.bin'
+_OUTER_SPLITTER_PATH  = Path(user_config_dir('mesonfe')) / 'outersplitter.bin'
 _STATE_PATH     = Path(user_config_dir('mesonfe')) / 'windowstate.bin'
 _TAB_VIS_PATH   = Path(user_config_dir('mesonfe')) / 'tabvisibility.json'
 _SETTINGS_PATH  = Path(user_config_dir('mesonfe')) / 'settings.json'
@@ -277,6 +278,7 @@ _DEFAULT_SHORTCUTS = {
     'tools_open_filemanager':  '',
     'tools_translations':      '',
     'view_toolbar':        '',
+    'view_info_strip':     '',
 }
 
 
@@ -1733,6 +1735,23 @@ class SetupPanel(QWidget):
             self._skip_next_rc_reload = False
 
 
+class _InfoStrip(QFrame):
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        h = event.size().height()
+        if h < 10:
+            return
+        hdr_font = QFont(QApplication.font())
+        hdr_font.setPixelSize(max(6, int(h * 0.27)))
+        val_font = QFont(QApplication.font())
+        val_font.setPixelSize(max(8, int(h * 0.43)))
+        for lbl in self.findChildren(QLabel):
+            if lbl.property('info_role') == 'header':
+                lbl.setFont(hdr_font)
+            else:
+                lbl.setFont(val_font)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, builddir):
         super().__init__()
@@ -1740,6 +1759,7 @@ class MainWindow(QMainWindow):
         self._project_dir = None
         self._test_items = []
         self._source_dir = None
+        self._project_name = None
         self._changed = []
         self.setWindowTitle(_make_window_title())
         screen = QApplication.primaryScreen().availableGeometry()
@@ -1849,6 +1869,47 @@ class MainWindow(QMainWindow):
         self._toolbar_view_action.setText('Show Toolbar')
         view_menu.addAction(self._toolbar_view_action)
 
+        self._info_strip = _InfoStrip()
+        self._info_strip.setFrameShape(QFrame.StyledPanel)
+        self._info_strip.setMinimumHeight(20)
+        _strip_layout = QHBoxLayout(self._info_strip)
+        _strip_layout.setContentsMargins(8, 2, 8, 2)
+        _strip_layout.setSpacing(0)
+
+        def _info_section(header_text):
+            w = QWidget()
+            vl = QVBoxLayout(w)
+            vl.setContentsMargins(8, 2, 8, 2)
+            vl.setSpacing(1)
+            hdr = QLabel(header_text)
+            hdr.setProperty('info_role', 'header')
+            val = QLabel()
+            vl.addStretch()
+            vl.addWidget(hdr)
+            vl.addWidget(val)
+            vl.addStretch()
+            return w, val
+
+        def _vsep():
+            sep = QFrame()
+            sep.setFrameShape(QFrame.VLine)
+            sep.setFrameShadow(QFrame.Sunken)
+            return sep
+
+        _proj_w,  self._info_project_lbl  = _info_section('Project')
+        _bld_w,   self._info_builddir_lbl  = _info_section('Build directory')
+        _disk_w,  self._info_disk_lbl      = _info_section('Disk (used / free)')
+        _strip_layout.addWidget(_proj_w)
+        _strip_layout.addWidget(_vsep())
+        _strip_layout.addWidget(_bld_w)
+        _strip_layout.addStretch()
+        _strip_layout.addWidget(_vsep())
+        _strip_layout.addWidget(_disk_w)
+        self._info_strip_action = QAction('Show Project Info Bar', self)
+        self._info_strip_action.setCheckable(True)
+        self._info_strip_action.toggled.connect(self._on_info_strip_toggled)
+        view_menu.addAction(self._info_strip_action)
+
         self._compile_panel = CompilePanel()
         self._install_panel = InstallPanel()
         self._uninstall_panel = UninstallPanel()
@@ -1885,9 +1946,22 @@ class MainWindow(QMainWindow):
         self._tree_action.blockSignals(True)
         self._tree_action.setChecked(_tree_visible)
         self._tree_action.blockSignals(False)
+        _info_visible = _settings.get('info_strip_visible', True)
+        self._info_strip_action.blockSignals(True)
+        self._info_strip_action.setChecked(_info_visible)
+        self._info_strip_action.blockSignals(False)
 
         self._main_splitter = QSplitter(Qt.Horizontal)
-        self.setCentralWidget(self._main_splitter)
+        self._outer_splitter = QSplitter(Qt.Vertical)
+        self._outer_splitter.addWidget(self._info_strip)
+        self._outer_splitter.addWidget(self._main_splitter)
+        self._outer_splitter.setCollapsible(0, False)
+        self._outer_splitter.setCollapsible(1, False)
+        self._outer_splitter.setSizes([160, 9999])
+        self.setCentralWidget(self._outer_splitter)
+        if not _info_visible:
+            self._info_strip.hide()
+
         self._main_splitter.addWidget(self._tree_panel)
         if not _tree_visible:
             self._tree_panel.hide()
@@ -1947,6 +2021,7 @@ class MainWindow(QMainWindow):
             'tools_open_filemanager': ('Open File Manager…',  self._open_filemanager_action),
             'tools_translations':     ('Translations…',        self._translations_action),
             'view_toolbar':        ('Show Toolbar',                   self._toolbar_view_action),
+            'view_info_strip':     ('Show Project Info Bar',          self._info_strip_action),
         }
         self._apply_shortcuts(load_shortcuts())
 
@@ -1971,9 +2046,14 @@ class MainWindow(QMainWindow):
         if _GEOMETRY_PATH.exists():
             self.restoreGeometry(_GEOMETRY_PATH.read_bytes())
 
+    def restore_splitter_state(self):
+        if _OUTER_SPLITTER_PATH.exists():
+            self._outer_splitter.restoreState(_OUTER_SPLITTER_PATH.read_bytes())
+
     def closeEvent(self, event):
         _GEOMETRY_PATH.parent.mkdir(parents=True, exist_ok=True)
         _GEOMETRY_PATH.write_bytes(bytes(self.saveGeometry()))
+        _OUTER_SPLITTER_PATH.write_bytes(bytes(self._outer_splitter.saveState()))
         super().closeEvent(event)
 
     def _set_tabs_enabled(self, enabled: bool):
@@ -1999,9 +2079,11 @@ class MainWindow(QMainWindow):
         self._options = options
         self._setups = setups
         self._source_dir = source_dir
+        self._project_name = project_name
         self._setup_panel.set_project_dir(source_dir, force=True)
         self._setup_panel.set_build_src_dir(source_dir)
         self.setWindowTitle(_make_window_title(project_name or self._builddir.resolve(strict=False).name))
+        self._update_info_toolbar()
         self._status_label.setText(self._builddir.resolve(strict=False).name)
         defaults = parse_defaults(source_dir) if source_dir else {}
 
@@ -2286,6 +2368,51 @@ class MainWindow(QMainWindow):
                 self._tabs.removeTab(idx)
         save_json_file(_TAB_VIS_PATH, {k: self._tab_actions[k].isChecked() for k, _, _ in _OPTIONAL_TABS})
 
+    @staticmethod
+    def _fmt_bytes(n: int) -> str:
+        for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
+            if n < 1024 or unit == 'TB':
+                return f'{n:.0f} {unit}' if unit == 'B' else f'{n:.1f} {unit}'
+            n /= 1024
+
+    def _update_info_toolbar(self):
+        if self._project_name:
+            self._info_project_lbl.setText(f'  {self._project_name}  ')
+        else:
+            self._info_project_lbl.setText('')
+        if self._builddir and self._source_dir:
+            try:
+                rel = Path(self._builddir).relative_to(self._source_dir)
+            except ValueError:
+                rel = Path(self._builddir)
+            self._info_builddir_lbl.setText(f'  {rel}  ')
+        elif self._builddir:
+            self._info_builddir_lbl.setText(f'  {Path(self._builddir)}  ')
+        else:
+            self._info_builddir_lbl.setText('')
+        if self._builddir:
+            try:
+                usage = shutil.disk_usage(self._builddir)
+                used = self._fmt_bytes(usage.used)
+                free = self._fmt_bytes(usage.free)
+                self._info_disk_lbl.setText(f'  {used} used / {free} free  ')
+            except OSError:
+                self._info_disk_lbl.setText('')
+        else:
+            self._info_disk_lbl.setText('')
+
+    def _on_info_strip_toggled(self, visible: bool):
+        if visible:
+            total = self._outer_splitter.height()
+            strip_h = max(40, total // 8)
+            self._outer_splitter.setSizes([strip_h, total - strip_h])
+            self._info_strip.show()
+        else:
+            self._info_strip.hide()
+        settings = load_settings()
+        settings['info_strip_visible'] = visible
+        save_settings(settings)
+
     def _toggle_tree_pane(self, visible):
         if visible:
             self._tree_panel.show()
@@ -2385,12 +2512,14 @@ class MainWindow(QMainWindow):
         source_dir = self._source_dir
         self._builddir = None
         self._source_dir = None
+        self._project_name = None
         if self._project_dir is None and source_dir:
             self._project_dir = source_dir
         self._setup_panel.set_project_dir(self._project_dir or source_dir, force=True)
         self._setup_panel.set_build_src_dir(None)
         self.setWindowTitle(_make_window_title())
         self._status_label.setText(_('No build directory'))
+        self._update_info_toolbar()
         self._open_terminal_action.setEnabled(False)
         self._open_filemanager_action.setEnabled(False)
         self._reconfigure_action.setEnabled(False)
@@ -2465,9 +2594,11 @@ class MainWindow(QMainWindow):
         if self._builddir and self._builddir.resolve(strict=False) == Path(bld_path):
             self._builddir = None
             self._source_dir = None
+            self._project_name = None
             self._setup_panel.set_build_src_dir(None)
             self.setWindowTitle(_make_window_title())
             self._status_label.setText(_('No build directory'))
+            self._update_info_toolbar()
             self._open_terminal_action.setEnabled(False)
             self._reconfigure_action.setEnabled(False)
             self._wipe_action.setEnabled(False)
@@ -3040,6 +3171,7 @@ def main():
             builddir = Path(recent[0])
     win = MainWindow(builddir)
     win.show()
+    win.restore_splitter_state()
     _setup_color_scheme_watcher()
     sys.exit(app.exec_())
 
