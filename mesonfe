@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
 import platform
 import sys
@@ -48,9 +49,23 @@ def _is_build_dir(path: Path) -> bool:
     return (path / 'meson-info').is_dir() or (path / 'meson-private').is_dir()
 
 
-def find_builddir():
-    if len(sys.argv) > 1:
-        return Path(sys.argv[1])
+def _parse_args():
+    parser = argparse.ArgumentParser(
+        prog=APP_NAME,
+        description=f'{APP_NAME} {VERSION} — GUI frontend for Meson build options.',
+    )
+    parser.add_argument(
+        '-C', '--builddir',
+        metavar='BUILDDIR',
+        help='path to a Meson build directory',
+    )
+    args, _ = parser.parse_known_args()
+    return args
+
+
+def find_builddir(explicit=None):
+    if explicit is not None:
+        return Path(explicit)
     if _is_build_dir(Path('.')):
         return Path('.')
     for base in (Path('.'), Path('..')):
@@ -3162,6 +3177,7 @@ def _apply_theme(app, theme: str):
 
 def main():
     global _SYSTEM_IS_DARK, _CHECK_ICON_PATH, _ARROW_ICON_DARK_BG, _ARROW_ICON_LIGHT_BG
+    args = _parse_args()
     ensure_default_mesonferc()
     app = QApplication(sys.argv)
 
@@ -3186,7 +3202,7 @@ def main():
                 break
     if not icon.isNull():
         app.setWindowIcon(icon)
-    builddir = find_builddir()
+    builddir = find_builddir(args.builddir)
     if builddir is None and load_settings().get('reopen_last', False):
         recent = load_recent_dirs()
         if recent:

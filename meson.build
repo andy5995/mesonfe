@@ -66,6 +66,7 @@ if get_option('with-nls')
     subdir('po')
 endif
 
+
 gnome = import('gnome')
 gnome.post_install(
     update_desktop_database: true,

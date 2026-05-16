@@ -54,9 +54,8 @@ def test_read_json_invalid(tmp_path):
 # find_builddir
 # ---------------------------------------------------------------------------
 
-def test_find_builddir_from_argv(tmp_path):
-    with patch.object(sys, 'argv', ['mesonfe', str(tmp_path)]):
-        assert find_builddir() == tmp_path
+def test_find_builddir_explicit_arg(tmp_path):
+    assert find_builddir(str(tmp_path)) == tmp_path
 
 
 def test_find_builddir_detects_cwd_as_build_dir(tmp_path, monkeypatch):
