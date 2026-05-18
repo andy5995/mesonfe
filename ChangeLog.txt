@@ -1,5 +1,6 @@
 - (in-progress):
   - Expand project info bar height
+  - Add Ctrl+F search bar to all output panels
 
 - v0.1.0
   - Initial release

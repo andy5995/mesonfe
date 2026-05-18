@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QFrame,
     QRadioButton, QButtonGroup,
 )
-from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal
+from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal, QEvent
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
 from platformdirs import user_config_dir
 import gettext as _gettext
@@ -502,13 +502,151 @@ def _append_highlighted(out, text, buf):
     out.ensureCursorVisible()
 
 
+class _SearchableOutput(QWidget):
+    """QTextEdit with a Ctrl+F search bar at the bottom."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self._edit = QTextEdit()
+        self._edit.setReadOnly(True)
+        self._edit.installEventFilter(self)
+        layout.addWidget(self._edit)
+
+        bar = QWidget()
+        bar_layout = QHBoxLayout(bar)
+        bar_layout.setContentsMargins(4, 2, 4, 2)
+        bar_layout.setSpacing(4)
+        self._search_edit = QLineEdit()
+        self._search_edit.setPlaceholderText(_('Search…'))
+        self._search_edit.textChanged.connect(self._on_search_changed)
+        self._search_edit.returnPressed.connect(self._find_next)
+        self._search_edit.installEventFilter(self)
+        bar_layout.addWidget(self._search_edit)
+        self._prev_btn = QPushButton('◀')
+        self._prev_btn.setFixedWidth(28)
+        self._prev_btn.setToolTip(_('Previous match'))
+        self._prev_btn.clicked.connect(self._find_prev)
+        bar_layout.addWidget(self._prev_btn)
+        self._next_btn = QPushButton('▶')
+        self._next_btn.setFixedWidth(28)
+        self._next_btn.setToolTip(_('Next match'))
+        self._next_btn.clicked.connect(self._find_next)
+        bar_layout.addWidget(self._next_btn)
+        self._count_label = QLabel('')
+        bar_layout.addWidget(self._count_label)
+        close_btn = QPushButton('✕')
+        close_btn.setFixedWidth(28)
+        close_btn.clicked.connect(self._hide_search)
+        bar_layout.addWidget(close_btn)
+        self._search_bar = bar
+        self._search_bar.hide()
+        layout.addWidget(self._search_bar)
+
+        self._match_idx = 0
+        self._matches = []
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.KeyPress:
+            if (event.key() == Qt.Key_F
+                    and event.modifiers() == Qt.ControlModifier):
+                self._show_search()
+                return True
+            if (event.key() == Qt.Key_Escape
+                    and self._search_bar.isVisible()):
+                self._hide_search()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _show_search(self):
+        self._search_bar.show()
+        self._search_edit.setFocus()
+        self._search_edit.selectAll()
+
+    def _hide_search(self):
+        self._search_bar.hide()
+        self._edit.setExtraSelections([])
+        self._edit.setFocus()
+
+    def _on_search_changed(self, text):
+        doc = self._edit.document()
+        self._matches = []
+        if text:
+            cursor = doc.find(text)
+            while not cursor.isNull():
+                self._matches.append(cursor)
+                cursor = doc.find(text, cursor)
+
+        sel_fmt = QTextCharFormat()
+        sel_fmt.setBackground(QColor('#ffff00'))
+        sel_fmt.setForeground(QColor('#000000'))
+        selections = []
+        for c in self._matches:
+            sel = QTextEdit.ExtraSelection()
+            sel.cursor = c
+            sel.format = sel_fmt
+            selections.append(sel)
+        self._edit.setExtraSelections(selections)
+
+        n = len(self._matches)
+        if n == 0:
+            self._match_idx = 0
+            self._count_label.setText(_('No matches') if text else '')
+            self._prev_btn.setEnabled(False)
+            self._next_btn.setEnabled(False)
+        else:
+            self._prev_btn.setEnabled(True)
+            self._next_btn.setEnabled(True)
+            self._jump_to(0)
+
+    def _jump_to(self, idx):
+        if not self._matches:
+            return
+        self._match_idx = idx % len(self._matches)
+        self._edit.setTextCursor(self._matches[self._match_idx])
+        self._edit.ensureCursorVisible()
+        # TRANSLATORS: current match index / total, e.g. "3/12"
+        self._count_label.setText(
+            '%d/%d' % (self._match_idx + 1, len(self._matches))
+        )
+
+    def _find_next(self):
+        self._jump_to(self._match_idx + 1)
+
+    def _find_prev(self):
+        self._jump_to(self._match_idx - 1)
+
+    def setReadOnly(self, v):
+        self._edit.setReadOnly(v)
+
+    def setFont(self, f):
+        self._edit.setFont(f)
+
+    def clear(self):
+        self._edit.clear()
+        self._matches = []
+        self._count_label.setText('')
+
+    def textCursor(self):
+        return self._edit.textCursor()
+
+    def setTextCursor(self, c):
+        self._edit.setTextCursor(c)
+
+    def ensureCursorVisible(self):
+        self._edit.ensureCursorVisible()
+
+
 class MesonSetupDialog(QDialog):
     def __init__(self, parent: QWidget, args: list, font_size: int = _DEFAULT_OUTPUT_FONT_SIZE):
         super().__init__(parent)
         self.setWindowTitle('meson setup')
         self.resize(720, 480)
         layout = QVBoxLayout(self)
-        self._out = QTextEdit()
+        self._out = _SearchableOutput()
         self._out.setReadOnly(True)
         self._out.setFont(QFont('monospace', font_size))
         layout.addWidget(self._out)
@@ -551,7 +689,7 @@ class TranslationsDialog(QDialog):
         self.setWindowTitle(_('Translations'))
         self.resize(720, 480)
         layout = QVBoxLayout(self)
-        self._out = QTextEdit()
+        self._out = _SearchableOutput()
         self._out.setReadOnly(True)
         self._out.setFont(QFont('monospace', font_size))
         layout.addWidget(self._out)
@@ -666,7 +804,7 @@ class CompilePanel(QWidget):
         form.addStretch()
         layout.addLayout(form)
 
-        self._out = QTextEdit()
+        self._out = _SearchableOutput()
         self._out.setReadOnly(True)
         self._out.setFont(QFont('monospace', _DEFAULT_OUTPUT_FONT_SIZE))
         layout.addWidget(self._out)
@@ -743,7 +881,7 @@ class InstallPanel(QWidget):
         form.addStretch()
         layout.addLayout(form)
 
-        self._out = QTextEdit()
+        self._out = _SearchableOutput()
         self._out.setReadOnly(True)
         self._out.setFont(QFont('monospace', _DEFAULT_OUTPUT_FONT_SIZE))
         layout.addWidget(self._out)
@@ -805,7 +943,7 @@ class UninstallPanel(QWidget):
         self._builddir = None
         layout = QVBoxLayout(self)
 
-        self._out = QTextEdit()
+        self._out = _SearchableOutput()
         self._out.setReadOnly(True)
         self._out.setFont(QFont('monospace', _DEFAULT_OUTPUT_FONT_SIZE))
         layout.addWidget(self._out)
@@ -876,7 +1014,7 @@ class DistPanel(QWidget):
         form.addStretch()
         layout.addLayout(form)
 
-        self._out = QTextEdit()
+        self._out = _SearchableOutput()
         self._out.setReadOnly(True)
         self._out.setFont(QFont('monospace', _DEFAULT_OUTPUT_FONT_SIZE))
         layout.addWidget(self._out)
@@ -986,7 +1124,7 @@ class SubprojectsPanel(QWidget):
         self._sp_list.setSelectionMode(QListWidget.NoSelection)
         layout.addWidget(self._sp_list)
 
-        self._out = QTextEdit()
+        self._out = _SearchableOutput()
         self._out.setReadOnly(True)
         self._out.setFont(QFont('monospace', _DEFAULT_OUTPUT_FONT_SIZE))
         layout.addWidget(self._out)
@@ -1089,7 +1227,7 @@ class TestPanel(QWidget):
         top_layout.addLayout(opts)
         splitter.addWidget(top)
 
-        self._out = QTextEdit()
+        self._out = _SearchableOutput()
         self._out.setReadOnly(True)
         self._out.setFont(QFont('monospace', _DEFAULT_OUTPUT_FONT_SIZE))
         splitter.addWidget(self._out)
@@ -1548,7 +1686,7 @@ class SetupPanel(QWidget):
         self._run_btn.clicked.connect(self._run)
         layout.addWidget(self._run_btn, alignment=Qt.AlignLeft)
 
-        self._out = QTextEdit()
+        self._out = _SearchableOutput()
         self._out.setReadOnly(True)
         layout.addWidget(self._out)
 
