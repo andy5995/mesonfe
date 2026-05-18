@@ -1896,16 +1896,16 @@ class MainWindow(QMainWindow):
 
         self._info_strip = _InfoStrip()
         self._info_strip.setFrameShape(QFrame.StyledPanel)
-        self._info_strip.setMinimumHeight(20)
+        self._info_strip.setMinimumHeight(80)
         _strip_layout = QHBoxLayout(self._info_strip)
-        _strip_layout.setContentsMargins(8, 2, 8, 2)
+        _strip_layout.setContentsMargins(8, 8, 8, 8)
         _strip_layout.setSpacing(0)
 
         def _info_section(header_text):
             w = QWidget()
             vl = QVBoxLayout(w)
-            vl.setContentsMargins(8, 2, 8, 2)
-            vl.setSpacing(1)
+            vl.setContentsMargins(8, 0, 8, 0)
+            vl.setSpacing(4)
             hdr = QLabel(header_text)
             hdr.setProperty('info_role', 'header')
             val = QLabel()
