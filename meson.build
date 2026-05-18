@@ -1,4 +1,4 @@
-project('mesonfe', version: '0.1.0', license: 'GPL-3.0-or-later', meson_version: '>= 0.59.0')
+project('mesonfe', version: '0.1.1', license: 'GPL-3.0-or-later', meson_version: '>= 0.59.0')
 
 _app_name = 'MesonFE'
 
