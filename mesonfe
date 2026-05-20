@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QRadioButton, QButtonGroup,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal, QEvent
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
+from PyQt5.QtGui import QFont, QFontMetrics, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
 from platformdirs import user_config_dir
 import gettext as _gettext
 
@@ -1928,15 +1928,25 @@ class _InfoStrip(QFrame):
         h = event.size().height()
         if h < 10:
             return
+        # Cap the upper end of font scaling so the labels' sizeHint width
+        # stays bounded — otherwise a very tall strip forces the window
+        # past the screen's right edge.
         hdr_font = QFont(QApplication.font())
-        hdr_font.setPixelSize(max(6, int(h * 0.27)))
+        hdr_font.setPixelSize(max(6, min(40, int(h * 0.22))))
         val_font = QFont(QApplication.font())
-        val_font.setPixelSize(max(8, int(h * 0.43)))
+        val_font.setPixelSize(max(8, min(64, int(h * 0.34))))
+        # QFontMetrics.height() is tight against the glyph baseline — add a
+        # few pixels so anti-aliased descender pixels (p, g, y, j) aren't
+        # clipped at large font sizes.
+        hdr_min = QFontMetrics(hdr_font).height() + 4
+        val_min = QFontMetrics(val_font).height() + 4
         for lbl in self.findChildren(QLabel):
             if lbl.property('info_role') == 'header':
                 lbl.setFont(hdr_font)
+                lbl.setMinimumHeight(hdr_min)
             else:
                 lbl.setFont(val_font)
+                lbl.setMinimumHeight(val_min)
 
 
 class MainWindow(QMainWindow):
@@ -2062,13 +2072,13 @@ class MainWindow(QMainWindow):
         self._info_strip.setFrameShape(QFrame.StyledPanel)
         self._info_strip.setMinimumHeight(80)
         _strip_layout = QHBoxLayout(self._info_strip)
-        _strip_layout.setContentsMargins(8, 8, 8, 8)
+        _strip_layout.setContentsMargins(8, 0, 8, 0)
         _strip_layout.setSpacing(0)
 
         def _info_section(header_text):
             w = QWidget()
             vl = QVBoxLayout(w)
-            vl.setContentsMargins(8, 0, 8, 0)
+            vl.setContentsMargins(8, 4, 8, 4)
             vl.setSpacing(4)
             hdr = QLabel(header_text)
             hdr.setProperty('info_role', 'header')
