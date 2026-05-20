@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QFrame,
     QRadioButton, QButtonGroup,
 )
-from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal, QEvent
+from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal, QEvent, QFileSystemWatcher
 from PyQt5.QtGui import QFont, QFontMetrics, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
 from platformdirs import user_config_dir
 import gettext as _gettext
@@ -91,7 +91,7 @@ def read_json(path: Path):
         return None
 
 
-def read_git_branch(source_dir: Path):
+def git_head_path(source_dir):
     if not source_dir:
         return None
     git = Path(source_dir) / '.git'
@@ -107,7 +107,17 @@ def read_git_branch(source_dir: Path):
             gitdir = git
         else:
             return None
-        head = (gitdir / 'HEAD').read_text().strip()
+    except OSError:
+        return None
+    return gitdir / 'HEAD'
+
+
+def read_git_branch(source_dir: Path):
+    head_path = git_head_path(source_dir)
+    if head_path is None:
+        return None
+    try:
+        head = head_path.read_text().strip()
     except OSError:
         return None
     if head.startswith('ref: refs/heads/'):
@@ -1958,6 +1968,9 @@ class MainWindow(QMainWindow):
         self._source_dir = None
         self._project_name = None
         self._changed = []
+        self._git_watcher = QFileSystemWatcher(self)
+        self._git_watcher.fileChanged.connect(self._on_git_head_changed)
+        self._watched_head = None
         self.setWindowTitle(_make_window_title())
         screen = QApplication.primaryScreen().availableGeometry()
         self.resize(int(screen.width() * 0.8), int(screen.height() * 0.8))
@@ -2603,6 +2616,7 @@ class MainWindow(QMainWindow):
             self._info_branch_lbl.setText('')
             self._info_branch_w.hide()
             self._info_branch_sep.hide()
+        self._sync_git_watch()
         if self._builddir:
             try:
                 usage = shutil.disk_usage(self._builddir)
@@ -2613,6 +2627,32 @@ class MainWindow(QMainWindow):
                 self._info_disk_lbl.setText('')
         else:
             self._info_disk_lbl.setText('')
+
+    def _sync_git_watch(self):
+        head = git_head_path(self._source_dir) if self._source_dir else None
+        head_str = str(head) if head and head.exists() else None
+        if head_str == self._watched_head:
+            return
+        if self._watched_head:
+            self._git_watcher.removePath(self._watched_head)
+        self._watched_head = head_str
+        if head_str:
+            self._git_watcher.addPath(head_str)
+
+    def _on_git_head_changed(self, path: str):
+        # Some git operations replace HEAD rather than modifying it in place,
+        # which drops the watch. Re-add when the file still exists.
+        if path not in self._git_watcher.files() and Path(path).exists():
+            self._git_watcher.addPath(path)
+        branch = read_git_branch(self._source_dir) if self._source_dir else None
+        if branch:
+            self._info_branch_lbl.setText(f'  {branch}  ')
+            self._info_branch_w.show()
+            self._info_branch_sep.show()
+        else:
+            self._info_branch_lbl.setText('')
+            self._info_branch_w.hide()
+            self._info_branch_sep.hide()
 
     def _on_info_strip_toggled(self, visible: bool):
         if visible:
