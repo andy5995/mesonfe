@@ -1,6 +1,8 @@
 - (in-progress):
   - Expand project info bar height
   - Add Ctrl+F search bar to all output panels
+  - Show git branch in the project info bar when the source tree is a
+    git checkout
 
 - v0.1.0
   - Initial release

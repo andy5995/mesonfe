@@ -20,6 +20,7 @@ _mod = importlib.util.module_from_spec(_spec)
 _loader.exec_module(_mod)
 
 read_json = _mod.read_json
+read_git_branch = _mod.read_git_branch
 find_builddir = _mod.find_builddir
 parse_defaults = _mod.parse_defaults
 parse_cmd_line = _mod.parse_cmd_line
@@ -395,3 +396,58 @@ def test_load_mesonferc_multiple_configs(tmp_path):
     )
     result = load_mesonferc(rc)
     assert set(result['configs']) == {'debug', 'release'}
+
+
+# ---------------------------------------------------------------------------
+# read_git_branch
+# ---------------------------------------------------------------------------
+
+def test_read_git_branch_symbolic_ref(tmp_path):
+    git = tmp_path / '.git'
+    git.mkdir()
+    (git / 'HEAD').write_text('ref: refs/heads/trunk\n')
+    assert read_git_branch(tmp_path) == 'trunk'
+
+
+def test_read_git_branch_nested_ref(tmp_path):
+    git = tmp_path / '.git'
+    git.mkdir()
+    (git / 'HEAD').write_text('ref: refs/heads/feature/sub-options\n')
+    assert read_git_branch(tmp_path) == 'feature/sub-options'
+
+
+def test_read_git_branch_detached_head(tmp_path):
+    git = tmp_path / '.git'
+    git.mkdir()
+    (git / 'HEAD').write_text('abcdef1234567890abcdef1234567890abcdef12\n')
+    assert read_git_branch(tmp_path) == 'abcdef1'
+
+
+def test_read_git_branch_worktree_gitfile(tmp_path):
+    real_gitdir = tmp_path / 'real.git'
+    real_gitdir.mkdir()
+    (real_gitdir / 'HEAD').write_text('ref: refs/heads/wt\n')
+    src = tmp_path / 'src'
+    src.mkdir()
+    (src / '.git').write_text(f'gitdir: {real_gitdir}\n')
+    assert read_git_branch(src) == 'wt'
+
+
+def test_read_git_branch_no_git(tmp_path):
+    assert read_git_branch(tmp_path) is None
+
+
+def test_read_git_branch_none_source_dir():
+    assert read_git_branch(None) is None
+
+
+def test_read_git_branch_missing_head(tmp_path):
+    (tmp_path / '.git').mkdir()
+    assert read_git_branch(tmp_path) is None
+
+
+def test_read_git_branch_empty_head(tmp_path):
+    git = tmp_path / '.git'
+    git.mkdir()
+    (git / 'HEAD').write_text('')
+    assert read_git_branch(tmp_path) is None

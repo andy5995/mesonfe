@@ -91,6 +91,32 @@ def read_json(path: Path):
         return None
 
 
+def read_git_branch(source_dir: Path):
+    if not source_dir:
+        return None
+    git = Path(source_dir) / '.git'
+    try:
+        if git.is_file():
+            line = git.read_text().strip()
+            if line.startswith('gitdir:'):
+                gitdir = (Path(source_dir) / line[7:].strip()).resolve(
+                    strict=False)
+            else:
+                return None
+        elif git.is_dir():
+            gitdir = git
+        else:
+            return None
+        head = (gitdir / 'HEAD').read_text().strip()
+    except OSError:
+        return None
+    if head.startswith('ref: refs/heads/'):
+        return head[len('ref: refs/heads/'):]
+    if head.startswith('ref: '):
+        return head[len('ref: '):]
+    return head[:7] if head else None
+
+
 def find_test_suites(builddir: Path) -> list:
     tests = read_json(builddir / 'meson-info' / 'intro-tests.json') or []
     seen = set()
@@ -2061,10 +2087,15 @@ class MainWindow(QMainWindow):
 
         _proj_w,  self._info_project_lbl  = _info_section(_('Project'))
         _bld_w,   self._info_builddir_lbl  = _info_section(_('Build directory'))
+        self._info_branch_w, self._info_branch_lbl = _info_section(
+            _('Git branch'))
+        self._info_branch_sep = _vsep()
         _disk_w,  self._info_disk_lbl      = _info_section(_('Disk (used / free)'))
         _strip_layout.addWidget(_proj_w)
         _strip_layout.addWidget(_vsep())
         _strip_layout.addWidget(_bld_w)
+        _strip_layout.addWidget(self._info_branch_sep)
+        _strip_layout.addWidget(self._info_branch_w)
         _strip_layout.addStretch()
         _strip_layout.addWidget(_vsep())
         _strip_layout.addWidget(_disk_w)
@@ -2553,6 +2584,15 @@ class MainWindow(QMainWindow):
             self._info_builddir_lbl.setText(f'  {Path(self._builddir)}  ')
         else:
             self._info_builddir_lbl.setText('')
+        branch = read_git_branch(self._source_dir) if self._source_dir else None
+        if branch:
+            self._info_branch_lbl.setText(f'  {branch}  ')
+            self._info_branch_w.show()
+            self._info_branch_sep.show()
+        else:
+            self._info_branch_lbl.setText('')
+            self._info_branch_w.hide()
+            self._info_branch_sep.hide()
         if self._builddir:
             try:
                 usage = shutil.disk_usage(self._builddir)
