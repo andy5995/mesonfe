@@ -323,6 +323,9 @@ _DEFAULT_SHORTCUTS = {
     'meson_wipe':          '',
     'tools_remove_builddir': '',
     'help_about':          'F1',
+    'edit_find':           'Ctrl+F',
+    'edit_find_next':      'F3',
+    'edit_find_prev':      'Shift+F3',
     'edit_preferences':    'Ctrl+,',
     'help_meson_docs':     '',
     'tools_open_terminal':     'Ctrl+Alt+T',
@@ -538,6 +541,42 @@ def _append_highlighted(out, text, buf):
     out.ensureCursorVisible()
 
 
+def _make_chevron_icon(direction: str, size: int = 12) -> QIcon:
+    pix = QPixmap(size, size)
+    pix.fill(Qt.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.Antialiasing)
+    color = QApplication.palette().color(QPalette.ButtonText)
+    pen = QPen(color, max(2, size // 6), Qt.SolidLine,
+               Qt.RoundCap, Qt.RoundJoin)
+    painter.setPen(pen)
+    m = size // 4
+    if direction == 'left':
+        painter.drawLine(size - m, m, m, size // 2)
+        painter.drawLine(m, size // 2, size - m, size - m)
+    elif direction == 'right':
+        painter.drawLine(m, m, size - m, size // 2)
+        painter.drawLine(size - m, size // 2, m, size - m)
+    painter.end()
+    return QIcon(pix)
+
+
+def _make_close_icon(size: int = 12) -> QIcon:
+    pix = QPixmap(size, size)
+    pix.fill(Qt.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.Antialiasing)
+    color = QApplication.palette().color(QPalette.ButtonText)
+    pen = QPen(color, max(2, size // 6), Qt.SolidLine,
+               Qt.RoundCap, Qt.RoundJoin)
+    painter.setPen(pen)
+    m = size // 4
+    painter.drawLine(m, m, size - m, size - m)
+    painter.drawLine(size - m, m, m, size - m)
+    painter.end()
+    return QIcon(pix)
+
+
 class _SearchableOutput(QWidget):
     """QTextEdit with a Ctrl+F search bar at the bottom."""
 
@@ -562,20 +601,24 @@ class _SearchableOutput(QWidget):
         self._search_edit.returnPressed.connect(self._find_next)
         self._search_edit.installEventFilter(self)
         bar_layout.addWidget(self._search_edit)
-        self._prev_btn = QPushButton('◀')
+        self._prev_btn = QPushButton()
+        self._prev_btn.setIcon(_make_chevron_icon('left'))
         self._prev_btn.setFixedWidth(28)
         self._prev_btn.setToolTip(_('Previous match'))
         self._prev_btn.clicked.connect(self._find_prev)
         bar_layout.addWidget(self._prev_btn)
-        self._next_btn = QPushButton('▶')
+        self._next_btn = QPushButton()
+        self._next_btn.setIcon(_make_chevron_icon('right'))
         self._next_btn.setFixedWidth(28)
         self._next_btn.setToolTip(_('Next match'))
         self._next_btn.clicked.connect(self._find_next)
         bar_layout.addWidget(self._next_btn)
         self._count_label = QLabel('')
         bar_layout.addWidget(self._count_label)
-        close_btn = QPushButton('✕')
+        close_btn = QPushButton()
+        close_btn.setIcon(_make_close_icon())
         close_btn.setFixedWidth(28)
+        close_btn.setToolTip(_('Close search bar'))
         close_btn.clicked.connect(self._hide_search)
         bar_layout.addWidget(close_btn)
         self._search_bar = bar
@@ -587,10 +630,6 @@ class _SearchableOutput(QWidget):
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.KeyPress:
-            if (event.key() == Qt.Key_F
-                    and event.modifiers() == Qt.ControlModifier):
-                self._show_search()
-                return True
             if (event.key() == Qt.Key_Escape
                     and self._search_bar.isVisible()):
                 self._hide_search()
@@ -1988,6 +2027,13 @@ class MainWindow(QMainWindow):
         self._refresh_recent_menu()
 
         edit_menu = self.menuBar().addMenu(_('Edit'))
+        self._find_action = edit_menu.addAction(_('Find…'))
+        self._find_action.triggered.connect(self._action_find)
+        self._find_next_action = edit_menu.addAction(_('Find Next'))
+        self._find_next_action.triggered.connect(self._action_find_next)
+        self._find_prev_action = edit_menu.addAction(_('Find Previous'))
+        self._find_prev_action.triggered.connect(self._action_find_prev)
+        edit_menu.addSeparator()
         self._prefs_action = edit_menu.addAction(_('Preferences…'))
         self._prefs_action.triggered.connect(self._show_preferences)
 
@@ -2232,6 +2278,9 @@ class MainWindow(QMainWindow):
             'meson_wipe':        (_('Wipe…'),                  self._wipe_action),
             'tools_remove_builddir': (_('Remove Build Directory…'), self._remove_builddir_action),
             'help_about':        (_('About'),                            self._about_action),
+            'edit_find':         (_('Find…'),                            self._find_action),
+            'edit_find_next':    (_('Find Next'),                        self._find_next_action),
+            'edit_find_prev':    (_('Find Previous'),                    self._find_prev_action),
             'edit_preferences':  (_('Preferences…'),                     self._prefs_action),
             'help_meson_docs':   (_('Meson Documentation'),              self._meson_docs_action),
             'tools_open_terminal':    (_('Open Terminal…'),       self._open_terminal_action),
@@ -2546,6 +2595,32 @@ class MainWindow(QMainWindow):
         layout.addLayout(btns)
 
         dlg.exec_()
+
+    def _focused_searchable(self):
+        w = QApplication.focusWidget()
+        while w is not None:
+            if isinstance(w, _SearchableOutput):
+                return w
+            w = w.parent()
+        current = self._tabs.currentWidget() if hasattr(self, '_tabs') else None
+        if current is not None:
+            return current.findChild(_SearchableOutput)
+        return None
+
+    def _action_find(self):
+        s = self._focused_searchable()
+        if s is not None:
+            s._show_search()
+
+    def _action_find_next(self):
+        s = self._focused_searchable()
+        if s is not None and s._search_bar.isVisible():
+            s._find_next()
+
+    def _action_find_prev(self):
+        s = self._focused_searchable()
+        if s is not None and s._search_bar.isVisible():
+            s._find_prev()
 
     def _open_keybindings(self, parent=None):
         def _apply(shortcuts):
