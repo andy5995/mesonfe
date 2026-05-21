@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-16 14:13-0500\n"
+"POT-Creation-Date: 2026-05-20 21:36-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,257 +17,277 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: mesonfe:401
+#: mesonfe:455
 msgid "Configure Keybindings"
 msgstr ""
 
-#: mesonfe:407
+#: mesonfe:461
 msgid "Action"
 msgstr ""
 
-#: mesonfe:407
+#: mesonfe:461
 msgid "Shortcut"
 msgstr ""
 
-#: mesonfe:426
+#: mesonfe:480
 msgid "Reset to Defaults"
 msgstr ""
 
-#: mesonfe:428 mesonfe:2328
+#: mesonfe:482 mesonfe:2607
 msgid "OK"
 msgstr ""
 
-#: mesonfe:430 mesonfe:2331
+#: mesonfe:484 mesonfe:2610
 msgid "Apply"
 msgstr ""
 
-#: mesonfe:432 mesonfe:2333
+#: mesonfe:486 mesonfe:2612
 msgid "Cancel"
 msgstr ""
 
-#: mesonfe:500 mesonfe:548 mesonfe:1359
+#: mesonfe:599
+msgid "Search…"
+msgstr ""
+
+#: mesonfe:607
+msgid "Previous match"
+msgstr ""
+
+#: mesonfe:613
+msgid "Next match"
+msgstr ""
+
+#: mesonfe:621
+msgid "Close search bar"
+msgstr ""
+
+#: mesonfe:672
+msgid "No matches"
+msgstr ""
+
+#: mesonfe:728 mesonfe:776 mesonfe:1587
 msgid "Close"
 msgstr ""
 
-#: mesonfe:536
+#: mesonfe:764
 msgid "Translations"
 msgstr ""
 
-#: mesonfe:544
+#: mesonfe:772
 msgid "Generate .pot"
 msgstr ""
 
-#: mesonfe:546
+#: mesonfe:774
 msgid "Update .po files"
 msgstr ""
 
-#: mesonfe:633 mesonfe:855 mesonfe:947
+#: mesonfe:861 mesonfe:1083 mesonfe:1175
 msgid "Jobs:"
 msgstr ""
 
-#: mesonfe:637 mesonfe:859 mesonfe:951
+#: mesonfe:865 mesonfe:1087 mesonfe:1179
 msgid "default"
 msgstr ""
 
-#: mesonfe:638
+#: mesonfe:866
 msgid "0 = use meson default"
 msgstr ""
 
-#: mesonfe:641 mesonfe:1067
+#: mesonfe:869 mesonfe:1295
 msgid "Verbose"
 msgstr ""
 
-#: mesonfe:643
+#: mesonfe:871
 msgid "Clean"
 msgstr ""
 
-#: mesonfe:646
+#: mesonfe:874
 msgid "Target:"
 msgstr ""
 
 #. TRANSLATORS: placeholder shown when no specific compile target is set
-#: mesonfe:649
+#: mesonfe:877
 msgid "(all)"
 msgstr ""
 
-#: mesonfe:659 mesonfe:736 mesonfe:798 mesonfe:873
+#: mesonfe:887 mesonfe:964 mesonfe:1026 mesonfe:1101
 msgid "Run"
 msgstr ""
 
-#: mesonfe:715
+#: mesonfe:943
 msgid "Dry run"
 msgstr ""
 
-#: mesonfe:716
+#: mesonfe:944
 msgid "No rebuild"
 msgstr ""
 
-#: mesonfe:717
+#: mesonfe:945
 msgid "Only changed"
 msgstr ""
 
-#: mesonfe:718
+#: mesonfe:946
 msgid "Strip"
 msgstr ""
 
-#: mesonfe:719
+#: mesonfe:947
 msgid "Quiet"
 msgstr ""
 
-#: mesonfe:724
+#: mesonfe:952
 msgid "Destdir:"
 msgstr ""
 
-#: mesonfe:726 mesonfe:2563 mesonfe:2571
+#: mesonfe:954 mesonfe:2904 mesonfe:2912
 msgid "(none)"
 msgstr ""
 
-#: mesonfe:843
+#: mesonfe:1071
 msgid "Allow dirty"
 msgstr ""
 
-#: mesonfe:844
+#: mesonfe:1072
 msgid "Include subprojects"
 msgstr ""
 
-#: mesonfe:845
+#: mesonfe:1073
 msgid "No tests"
 msgstr ""
 
-#: mesonfe:849
+#: mesonfe:1077
 msgid "Formats:"
 msgstr ""
 
-#: mesonfe:852
+#: mesonfe:1080
 msgid "Comma-separated: xztar, bztar, gztar, zip"
 msgstr ""
 
-#: mesonfe:870
+#: mesonfe:1098
 msgid "Show in Folder"
 msgstr ""
 
-#: mesonfe:940
+#: mesonfe:1168
 msgid "Reset"
 msgstr ""
 
 #. TRANSLATORS: 'git' is a version control system name; do not translate it
-#: mesonfe:942
+#: mesonfe:1170
 msgid "Hard reset to wrap revision (git only)"
 msgstr ""
 
-#: mesonfe:943
+#: mesonfe:1171
 msgid "Allow insecure"
 msgstr ""
 
-#: mesonfe:957
+#: mesonfe:1185
 msgid "Subprojects:"
 msgstr ""
 
-#: mesonfe:959
+#: mesonfe:1187
 msgid "All"
 msgstr ""
 
-#: mesonfe:960
+#: mesonfe:1188
 msgid "None"
 msgstr ""
 
-#: mesonfe:979
+#: mesonfe:1207
 msgid "Update"
 msgstr ""
 
-#: mesonfe:1069
+#: mesonfe:1297
 msgid "Run Selected"
 msgstr ""
 
-#: mesonfe:1381 mesonfe:1839
+#: mesonfe:1609 mesonfe:2110
 msgid "Build Files"
 msgstr ""
 
-#: mesonfe:1467
+#: mesonfe:1695
 msgid "Project source directory"
 msgstr ""
 
-#: mesonfe:1471 mesonfe:1493 mesonfe:2290
+#: mesonfe:1699 mesonfe:1721 mesonfe:2569
 msgid "Browse…"
 msgstr ""
 
-#: mesonfe:1476
+#: mesonfe:1704
 msgid "Source directory does not match the current build directory's source"
 msgstr ""
 
-#: mesonfe:1479
+#: mesonfe:1707
 msgid "Use build source"
 msgstr ""
 
-#: mesonfe:1480
+#: mesonfe:1708
 msgid "Reset to the source directory of the current build"
 msgstr ""
 
-#: mesonfe:1487
+#: mesonfe:1715
 msgid "Source directory:"
 msgstr ""
 
-#: mesonfe:1495
+#: mesonfe:1723
 msgid "Remove build dir…"
 msgstr ""
 
-#: mesonfe:1501
+#: mesonfe:1729
 msgid "Build directory:"
 msgstr ""
 
-#: mesonfe:1504 mesonfe:1661
+#: mesonfe:1732 mesonfe:1889
 msgid "(default)"
 msgstr ""
 
-#: mesonfe:1507
+#: mesonfe:1735
 msgid "Configuration:"
 msgstr ""
 
-#: mesonfe:1511
+#: mesonfe:1739
 msgid "Extra args:"
 msgstr ""
 
-#: mesonfe:1517
+#: mesonfe:1745
 msgid "Create"
 msgstr ""
 
-#: mesonfe:1518
+#: mesonfe:1746
 msgid "Create a .mesonferc in the source directory"
 msgstr ""
 
-#: mesonfe:1520
+#: mesonfe:1748
 msgid "Load"
 msgstr ""
 
-#: mesonfe:1521
+#: mesonfe:1749
 msgid "Load options from .mesonferc into the fields below"
 msgstr ""
 
-#: mesonfe:1523
+#: mesonfe:1751
 msgid "Open"
 msgstr ""
 
-#: mesonfe:1524
+#: mesonfe:1752
 msgid "Open .mesonferc in an editor"
 msgstr ""
 
-#: mesonfe:1532
+#: mesonfe:1760
 msgid "Run meson setup"
 msgstr ""
 
-#: mesonfe:1585
+#: mesonfe:1813
 msgid "Select Source Directory"
 msgstr ""
 
-#: mesonfe:1591 mesonfe:2577
+#: mesonfe:1819 mesonfe:2918
 msgid "Select Build Directory"
 msgstr ""
 
-#: mesonfe:1613 mesonfe:2512
+#: mesonfe:1841 mesonfe:2853
 msgid "Remove build directory"
 msgstr ""
 
-#: mesonfe:1614 mesonfe:2513
+#: mesonfe:1842 mesonfe:2854
 #, python-format
 msgid ""
 "Permanently delete\n"
@@ -277,30 +297,30 @@ msgid ""
 msgstr ""
 
 #. TRANSLATORS: %s is the OS error message
-#: mesonfe:1624 mesonfe:2523 mesonfe:2774
+#: mesonfe:1852 mesonfe:2864 mesonfe:3115
 msgid "Error"
 msgstr ""
 
-#: mesonfe:1624
+#: mesonfe:1852
 #, python-format
 msgid ""
 "Failed to remove:\n"
 "%s"
 msgstr ""
 
-#: mesonfe:1632 mesonfe:1675 mesonfe:1705
+#: mesonfe:1860 mesonfe:1903 mesonfe:1933
 msgid "No source directory"
 msgstr ""
 
-#: mesonfe:1633 mesonfe:1676 mesonfe:1706
+#: mesonfe:1861 mesonfe:1904 mesonfe:1934
 msgid "Set the source directory first."
 msgstr ""
 
-#: mesonfe:1639
+#: mesonfe:1867
 msgid "File exists"
 msgstr ""
 
-#: mesonfe:1640
+#: mesonfe:1868
 #, python-format
 msgid ""
 ".mesonferc already exists in %s\n"
@@ -309,280 +329,300 @@ msgid ""
 msgstr ""
 
 #. TRANSLATORS: %s is the path of the newly created file
-#: mesonfe:1648
+#: mesonfe:1876
 msgid "Created"
 msgstr ""
 
-#: mesonfe:1648
+#: mesonfe:1876
 #, python-format
 msgid "Created %s"
 msgstr ""
 
 #. TRANSLATORS: %s is the source directory path
-#: mesonfe:1681 mesonfe:1711
+#: mesonfe:1909 mesonfe:1939
 msgid "Not found"
 msgstr ""
 
-#: mesonfe:1682 mesonfe:1712
+#: mesonfe:1910 mesonfe:1940
 #, python-format
 msgid "No .mesonferc found in %s"
 msgstr ""
 
-#: mesonfe:1720
+#: mesonfe:1948
 msgid "Missing fields"
 msgstr ""
 
-#: mesonfe:1721
+#: mesonfe:1949
 msgid "Source and build directories are required."
 msgstr ""
 
-#: mesonfe:1776
+#: mesonfe:1978
+msgid "Pick info bar color"
+msgstr ""
+
+#: mesonfe:2040
 msgid "File"
 msgstr ""
 
-#: mesonfe:1777 mesonfe:2021
+#: mesonfe:2041 mesonfe:2297
 msgid "Open Build Directory…"
 msgstr ""
 
-#: mesonfe:1779 mesonfe:2022
+#: mesonfe:2043 mesonfe:2298
 msgid "Open Project Directory…"
 msgstr ""
 
-#: mesonfe:1782
+#: mesonfe:2046
 msgid "Recently Opened"
 msgstr ""
 
-#: mesonfe:1784 mesonfe:2023
+#: mesonfe:2048 mesonfe:2299
 msgid "Quit"
 msgstr ""
 
-#: mesonfe:1788
+#: mesonfe:2052
 msgid "Edit"
 msgstr ""
 
-#: mesonfe:1789 mesonfe:2028
+#: mesonfe:2053 mesonfe:2304
+msgid "Find…"
+msgstr ""
+
+#: mesonfe:2055 mesonfe:2305
+msgid "Find Next"
+msgstr ""
+
+#: mesonfe:2057 mesonfe:2306
+msgid "Find Previous"
+msgstr ""
+
+#: mesonfe:2060 mesonfe:2307
 msgid "Preferences…"
 msgstr ""
 
-#: mesonfe:1793 mesonfe:2030
+#: mesonfe:2064 mesonfe:2309
 msgid "Open Terminal…"
 msgstr ""
 
-#: mesonfe:1794
+#: mesonfe:2065
 msgid "Open the build directory in a terminal"
 msgstr ""
 
-#: mesonfe:1809 mesonfe:2031
+#: mesonfe:2080 mesonfe:2310
 msgid "Open File Manager…"
 msgstr ""
 
-#: mesonfe:1810
+#: mesonfe:2081
 msgid "Open the build directory in a file manager"
 msgstr ""
 
-#: mesonfe:1819 mesonfe:2024
+#: mesonfe:2090 mesonfe:2300
 msgid "Reconfigure…"
 msgstr ""
 
 #. TRANSLATORS: 'meson setup --reconfigure' is a command name; do not translate it
-#: mesonfe:1821
+#: mesonfe:2092
 msgid "Re-run meson setup with existing options (meson setup --reconfigure)"
 msgstr ""
 
-#: mesonfe:1826 mesonfe:2025
+#: mesonfe:2097 mesonfe:2301
 msgid "Wipe…"
 msgstr ""
 
 #. TRANSLATORS: 'meson setup --wipe' is a command name; do not translate it
-#: mesonfe:1828
+#: mesonfe:2099
 msgid "Wipe and reconfigure the build directory (meson setup --wipe)"
 msgstr ""
 
-#: mesonfe:1833 mesonfe:2026
+#: mesonfe:2104 mesonfe:2302
 msgid "Remove Build Directory…"
 msgstr ""
 
-#: mesonfe:1834
+#: mesonfe:2105
 msgid "Permanently remove the current build directory"
 msgstr ""
 
-#: mesonfe:1841
+#: mesonfe:2112
 msgid "Show build files tree"
 msgstr ""
 
-#: mesonfe:1856
+#: mesonfe:2127
 msgid "Tools"
 msgstr ""
 
-#: mesonfe:1864 mesonfe:2032
+#: mesonfe:2135 mesonfe:2311
 msgid "Translations…"
 msgstr ""
 
-#: mesonfe:1867
+#: mesonfe:2138
 msgid "View"
 msgstr ""
 
-#: mesonfe:1869
+#: mesonfe:2140
 msgid "Main Toolbar"
 msgstr ""
 
-#: mesonfe:1879 mesonfe:2033
+#: mesonfe:2150 mesonfe:2312
 msgid "Show Toolbar"
 msgstr ""
 
-#: mesonfe:1909
+#: mesonfe:2180
 msgid "Project"
 msgstr ""
 
-#: mesonfe:1910
+#: mesonfe:2181
 msgid "Build directory"
 msgstr ""
 
-#: mesonfe:1911
+#: mesonfe:2183
+msgid "Git branch"
+msgstr ""
+
+#: mesonfe:2185
 msgid "Disk (used / free)"
 msgstr ""
 
-#: mesonfe:1918 mesonfe:2034
+#: mesonfe:2194 mesonfe:2313
 msgid "Show Project Info Bar"
 msgstr ""
 
-#: mesonfe:1987
+#: mesonfe:2263
 msgid "Changed from defaults"
 msgstr ""
 
 #. All options
-#: mesonfe:1988 mesonfe:2173 mesonfe:2214
+#: mesonfe:2264 mesonfe:2452 mesonfe:2493
 msgid "Build Options"
 msgstr ""
 
 #. replaced in _rebuild
-#: mesonfe:1989
+#: mesonfe:2265
 msgid "Setup"
 msgstr ""
 
-#: mesonfe:2012
+#: mesonfe:2288
 msgid "Help"
 msgstr ""
 
-#: mesonfe:2013 mesonfe:2027
+#: mesonfe:2289 mesonfe:2303
 msgid "About"
 msgstr ""
 
-#: mesonfe:2015 mesonfe:2029
+#: mesonfe:2291 mesonfe:2308
 msgid "Meson Documentation"
 msgstr ""
 
-#: mesonfe:2046 mesonfe:2542 mesonfe:2620
+#: mesonfe:2325 mesonfe:2883 mesonfe:2961
 msgid ""
 "No build directory loaded.\n"
 "Open one via the File menu, or use the Setup tab to run meson setup."
 msgstr ""
 
-#: mesonfe:2050 mesonfe:2534 mesonfe:2613
+#: mesonfe:2329 mesonfe:2875 mesonfe:2954
 msgid "No build directory"
 msgstr ""
 
-#: mesonfe:2128
+#: mesonfe:2407
 msgid "Option"
 msgstr ""
 
-#: mesonfe:2128
+#: mesonfe:2407
 msgid "Current value"
 msgstr ""
 
-#: mesonfe:2128
+#: mesonfe:2407
 msgid "Default"
 msgstr ""
 
-#: mesonfe:2143
+#: mesonfe:2422
 msgid "No options differ from defaults."
 msgstr ""
 
-#: mesonfe:2177
+#: mesonfe:2456
 msgid "Filter:"
 msgstr ""
 
-#: mesonfe:2179
+#: mesonfe:2458
 msgid "name or description"
 msgstr ""
 
-#: mesonfe:2185
+#: mesonfe:2464
 msgid "Name"
 msgstr ""
 
-#: mesonfe:2185
+#: mesonfe:2464
 msgid "Type"
 msgstr ""
 
-#: mesonfe:2185
+#: mesonfe:2464
 msgid "Value"
 msgstr ""
 
-#: mesonfe:2185
+#: mesonfe:2464
 msgid "Description"
 msgstr ""
 
-#: mesonfe:2204
+#: mesonfe:2483
 msgid "Apply Changes"
 msgstr ""
 
-#: mesonfe:2235
+#: mesonfe:2514
 msgid "Preferences"
 msgstr ""
 
-#: mesonfe:2241
+#: mesonfe:2520
 msgid "Output font size (points):"
 msgstr ""
 
-#: mesonfe:2251
+#: mesonfe:2530
 msgid "Theme:"
 msgstr ""
 
-#: mesonfe:2253
+#: mesonfe:2532
 msgid "Auto"
 msgstr ""
 
-#: mesonfe:2254
+#: mesonfe:2533
 msgid "Light"
 msgstr ""
 
-#: mesonfe:2255
+#: mesonfe:2534
 msgid "Dark"
 msgstr ""
 
-#: mesonfe:2266
+#: mesonfe:2545
 msgid "Reopen last build directory on startup"
 msgstr ""
 
-#: mesonfe:2270
+#: mesonfe:2549
 msgid "Keybindings…"
 msgstr ""
 
-#: mesonfe:2278
+#: mesonfe:2557
 msgid "Edit default .mesonferc…"
 msgstr ""
 
-#: mesonfe:2293
+#: mesonfe:2572
 msgid "Select executable"
 msgstr ""
 
-#: mesonfe:2300
+#: mesonfe:2579
 msgid "Terminal:"
 msgstr ""
 
-#: mesonfe:2302
+#: mesonfe:2581
 msgid "Editor:"
 msgstr ""
 
-#: mesonfe:2304
+#: mesonfe:2583
 msgid "File manager:"
 msgstr ""
 
-#: mesonfe:2453
+#: mesonfe:2794
 msgid "Wipe build directory"
 msgstr ""
 
-#: mesonfe:2454
+#: mesonfe:2795
 #, python-format
 msgid ""
 "Wipe and reconfigure\n"
@@ -591,99 +631,99 @@ msgid ""
 "This clears the build cache and re-runs meson setup. Continue?"
 msgstr ""
 
-#: mesonfe:2523
+#: mesonfe:2864
 #, python-format
 msgid ""
 "Failed to remove build directory:\n"
 "%s"
 msgstr ""
 
-#: mesonfe:2554
+#: mesonfe:2895
 msgid "(empty)"
 msgstr ""
 
-#: mesonfe:2557
+#: mesonfe:2898
 msgid "Build Directories"
 msgstr ""
 
-#: mesonfe:2565
+#: mesonfe:2906
 msgid "Project Directories"
 msgstr ""
 
-#: mesonfe:2574
+#: mesonfe:2915
 msgid "Clear Recent"
 msgstr ""
 
-#: mesonfe:2582
+#: mesonfe:2923
 msgid "Select Project Directory"
 msgstr ""
 
-#: mesonfe:2601
+#: mesonfe:2942
 msgid "Source dir differs from loaded build — other tabs disabled"
 msgstr ""
 
 #. TRANSLATORS: %s is the build directory path
-#: mesonfe:2629
+#: mesonfe:2970
 msgid "Not a build directory"
 msgstr ""
 
-#: mesonfe:2630
+#: mesonfe:2971
 #, python-format
 msgid "%s does not look like a Meson build directory."
 msgstr ""
 
 #. TRANSLATORS: shown in the About dialog when the version is unknown
-#: mesonfe:2665
+#: mesonfe:3006
 msgid "(development)"
 msgstr ""
 
 #. TRANSLATORS: %s is the application name
-#: mesonfe:2669
+#: mesonfe:3010
 #, python-format
 msgid "About %s"
 msgstr ""
 
-#: mesonfe:2671
+#: mesonfe:3012
 msgid "A PyQt5 GUI frontend for Meson build options."
 msgstr ""
 
 #. TRANSLATORS: keep the <a href="%s">…</a> HTML tags intact;
 #. %s is replaced by the Meson project URL at runtime
-#: mesonfe:2676
+#: mesonfe:3017
 #, python-format
 msgid ""
 "Disclaimer: This project is not affiliated with or endorsed by the <a "
 "href=\"%s\">Meson project</a> or its developers."
 msgstr ""
 
-#: mesonfe:2724
+#: mesonfe:3065
 msgid "No terminal found"
 msgstr ""
 
-#: mesonfe:2725
+#: mesonfe:3066
 msgid ""
 "Could not find a terminal emulator.\n"
 "Set the $TERMINAL environment variable to your preferred terminal."
 msgstr ""
 
-#: mesonfe:2761
+#: mesonfe:3102
 msgid "No changes"
 msgstr ""
 
-#: mesonfe:2761
+#: mesonfe:3102
 msgid "No options were modified."
 msgstr ""
 
 #. TRANSLATORS: %d is the number of changed options
-#: mesonfe:2770
+#: mesonfe:3111
 msgid "Done"
 msgstr ""
 
-#: mesonfe:2771
+#: mesonfe:3112
 #, python-format
 msgid "Applied %d change(s)."
 msgstr ""
 
-#: mesonfe:2775
+#: mesonfe:3116
 msgid "meson configure failed"
 msgstr ""
