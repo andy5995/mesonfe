@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QListWidget, QListWidgetItem, QCheckBox, QFileDialog, QSpinBox,
     QKeySequenceEdit, QAction, QSplitter, QTabWidget, QTabBar,
     QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QFrame,
-    QRadioButton, QButtonGroup,
+    QRadioButton, QButtonGroup, QColorDialog,
 )
 from PyQt5.QtCore import Qt, QProcess, QUrl, pyqtSignal, QEvent, QFileSystemWatcher
 from PyQt5.QtGui import QFont, QFontMetrics, QColor, QTextCursor, QTextCharFormat, QPalette, QIcon, QDesktopServices, QKeySequence, QSyntaxHighlighter, QPainter, QPen, QPixmap
@@ -1972,6 +1972,29 @@ class SetupPanel(QWidget):
 
 
 class _InfoStrip(QFrame):
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            color = QColorDialog.getColor(parent=self,
+                                          title=_('Pick info bar color'))
+            if color.isValid():
+                self._apply_color(color)
+        elif event.button() == Qt.RightButton:
+            self._apply_color(None)
+        super().mousePressEvent(event)
+
+    def _apply_color(self, color):
+        if color is None:
+            self.setStyleSheet('')
+            return
+        lum = (0.299 * color.red() + 0.587 * color.green()
+               + 0.114 * color.blue())
+        text = '#000000' if lum > 128 else '#ffffff'
+        self.setStyleSheet(
+            '_InfoStrip { background-color: %s; }'
+            '_InfoStrip QLabel { color: %s; background: transparent; }'
+            % (color.name(), text)
+        )
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         h = event.size().height()
