@@ -1,4 +1,4 @@
-- (in-progress):
+- mesonfe v0.1.1:
   - Expand project info bar height
   - Add search bar to all output panels, with Edit menu entries for
     Find, Find Next, and Find Previous
@@ -7,5 +7,5 @@
   - Show git branch in the project info bar when the source tree is a
     git checkout
 
-- v0.1.0
+- mesonfe v0.1.0:
   - Initial release
