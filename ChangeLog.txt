@@ -1,6 +1,8 @@
 - mesonfe v0.1.2 (in-progress):
   - Enable PEP 563 lazy annotations so the script imports on
     Python 3.9 (needed for Slackware 15.0)
+  - Add module docstring to mesonfe/__init__.py so it isn't
+    zero-length (silences a Slackware makepkg warning)
 
 - mesonfe v0.1.1:
   - Expand project info bar height
