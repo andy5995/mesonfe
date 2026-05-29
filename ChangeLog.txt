@@ -1,3 +1,7 @@
+- mesonfe v0.1.2 (in-progress):
+  - Enable PEP 563 lazy annotations so the script imports on
+    Python 3.9 (needed for Slackware 15.0)
+
 - mesonfe v0.1.1:
   - Expand project info bar height
   - Add search bar to all output panels, with Edit menu entries for
