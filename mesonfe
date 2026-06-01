@@ -509,6 +509,7 @@ _HL_WARN            = re.compile(r'\bwarning\b', re.IGNORECASE)
 _HL_NOTE            = re.compile(r'\bnote\b', re.IGNORECASE)
 _HL_EXIT            = re.compile(r'^\[exited (\d+)\]')
 _HL_UNINSTALL_FAIL  = re.compile(r'^(Failed:\s+[1-9]|Could not delete\b)', re.IGNORECASE)
+_HL_PROGRESS        = re.compile(r'^\[\d+/\d+\]')
 
 _OUT_COLOR_OK    = '#90ee90'
 _OUT_COLOR_ERROR = '#ff6b6b'
@@ -516,29 +517,73 @@ _OUT_COLOR_WARN  = '#f0c060'
 _OUT_COLOR_NOTE  = '#87ceeb'
 
 
-def _append_highlighted(out, text, buf):
+def _line_format(line):
+    fmt = QTextCharFormat()
+    m = _HL_EXIT.match(line.strip())
+    if m:
+        fmt.setForeground(QColor(_OUT_COLOR_OK if m.group(1) == '0' else _OUT_COLOR_ERROR))
+    elif _HL_UNINSTALL_FAIL.match(line.strip()) or _HL_ERROR.search(line) or 'FAILED' in line:
+        fmt.setForeground(QColor(_OUT_COLOR_ERROR))
+    elif _HL_WARN.search(line):
+        fmt.setForeground(QColor(_OUT_COLOR_WARN))
+    elif _HL_NOTE.search(line):
+        fmt.setForeground(QColor(_OUT_COLOR_NOTE))
+    return fmt
+
+
+def _split_lines(text, buf):
     combined = buf[0] + text
     parts = combined.split('\n')
     if combined.endswith('\n'):
         buf[0] = ''
-        lines = parts[:-1]
     else:
         buf[0] = parts[-1]
-        lines = parts[:-1]
+    return parts[:-1]
+
+
+def _append_highlighted(out, text, buf):
     cursor = out.textCursor()
     cursor.movePosition(QTextCursor.End)
-    for line in lines:
-        fmt = QTextCharFormat()
-        m = _HL_EXIT.match(line.strip())
-        if m:
-            fmt.setForeground(QColor(_OUT_COLOR_OK if m.group(1) == '0' else _OUT_COLOR_ERROR))
-        elif _HL_UNINSTALL_FAIL.match(line.strip()) or _HL_ERROR.search(line) or 'FAILED' in line:
-            fmt.setForeground(QColor(_OUT_COLOR_ERROR))
-        elif _HL_WARN.search(line):
-            fmt.setForeground(QColor(_OUT_COLOR_WARN))
-        elif _HL_NOTE.search(line):
-            fmt.setForeground(QColor(_OUT_COLOR_NOTE))
-        cursor.insertText(line + '\n', fmt)
+    for line in _split_lines(text, buf):
+        cursor.insertText(line + '\n', _line_format(line))
+    out.setTextCursor(cursor)
+    out.ensureCursorVisible()
+
+
+def _append_compile(out, text, buf, status):
+    """Append compile output terminal-style.
+
+    Consecutive ninja ``[N/M]`` progress lines collapse into a single status
+    line that updates in place; any other output (compiler warnings, errors,
+    notes) is inserted as a permanent line above the status line, mirroring
+    how ninja behaves when writing to a real terminal.
+
+    ``status`` is a one-element list used as a mutable flag tracking whether
+    a transient status line is currently the last block in the document.
+    """
+    cursor = out.textCursor()
+    for line in _split_lines(text, buf):
+        if _HL_PROGRESS.match(line):
+            cursor.movePosition(QTextCursor.End)
+            if status[0]:
+                cursor.movePosition(
+                    QTextCursor.StartOfBlock, QTextCursor.KeepAnchor
+                )
+                cursor.removeSelectedText()
+            cursor.insertText(line, _line_format(line))
+            status[0] = True
+        elif status[0]:
+            cursor.movePosition(QTextCursor.End)
+            cursor.movePosition(
+                QTextCursor.StartOfBlock, QTextCursor.KeepAnchor
+            )
+            status_text = cursor.selectedText()
+            cursor.removeSelectedText()
+            cursor.insertText(line + '\n', _line_format(line))
+            cursor.insertText(status_text, _line_format(status_text))
+        else:
+            cursor.movePosition(QTextCursor.End)
+            cursor.insertText(line + '\n', _line_format(line))
     out.setTextCursor(cursor)
     out.ensureCursorVisible()
 
@@ -898,6 +943,8 @@ class CompilePanel(QWidget):
         )
         self._proc.finished.connect(self._on_finished)
         self._line_buf = ['']
+        self._status = [False]
+        self._collapse = True
 
 
     def set_builddir(self, builddir):
@@ -907,6 +954,7 @@ class CompilePanel(QWidget):
     def _run(self):
         self._out.clear()
         self._line_buf[0] = ''
+        self._status[0] = False
         self._run_btn.setEnabled(False)
         args = ['compile', '-C', str(self._builddir)]
         if self._jobs.value() > 0:
@@ -917,13 +965,25 @@ class CompilePanel(QWidget):
             args.append('--clean')
         if self._target.text().strip():
             args.append(self._target.text().strip())
+        # In verbose mode ninja prints full commands rather than progress
+        # lines, so collapsing would hide them — keep every line then.
+        self._collapse = not self._verbose.isChecked()
         self._proc.start('meson', args)
 
     def _append(self, text: str):
-        _append_highlighted(self._out, text, self._line_buf)
+        if self._collapse:
+            _append_compile(self._out, text, self._line_buf, self._status)
+        else:
+            _append_highlighted(self._out, text, self._line_buf)
 
     def _on_finished(self, code: int, _status):
-        self._append(f'\n[exited {code}]\n')
+        if self._status[0]:
+            cursor = self._out.textCursor()
+            cursor.movePosition(QTextCursor.End)
+            cursor.insertText('\n')
+            self._out.setTextCursor(cursor)
+            self._status[0] = False
+        self._append(f'[exited {code}]\n')
         self._run_btn.setEnabled(True)
         if code == 0 and self._clean.isChecked():
             self._clean.setChecked(False)

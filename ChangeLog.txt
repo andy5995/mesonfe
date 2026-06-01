@@ -3,6 +3,8 @@
     Python 3.9 (needed for Slackware 15.0)
   - Add module docstring to mesonfe/__init__.py so it isn't
     zero-length (silences a Slackware makepkg warning)
+  - Collapse ninja progress lines in the compile output into a single
+    updating status line, terminal-style
 
 - mesonfe v0.1.1:
   - Expand project info bar height
