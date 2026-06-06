@@ -5,6 +5,8 @@
     zero-length (silences a Slackware makepkg warning)
   - Collapse ninja progress lines in the compile output into a single
     updating status line, terminal-style
+  - Translations: run the project's meson i18n targets (-pot,
+    -update-po) instead of reconstructing xgettext/msgmerge commands
 
 - mesonfe v0.1.1:
   - Expand project info bar height

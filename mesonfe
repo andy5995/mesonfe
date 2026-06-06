@@ -153,6 +153,25 @@ def find_test_setups(builddir: Path) -> list:
     return setups
 
 
+def find_gettext_targets(builddir: Path) -> dict:
+    """Discover meson i18n run targets in a build directory.
+
+    Returns a dict mapping role to target name for the targets created by
+    meson's ``i18n.gettext()``: ``pot`` for ``<pkg>-pot`` and
+    ``update_po`` for ``<pkg>-update-po``. Roles with no matching target
+    are omitted, so callers can test membership to decide what to offer.
+    """
+    targets = read_json(builddir / 'meson-info' / 'intro-targets.json') or []
+    found = {}
+    for t in targets:
+        name = t.get('name', '')
+        if name.endswith('-update-po'):
+            found['update_po'] = name
+        elif name.endswith('-pot'):
+            found['pot'] = name
+    return found
+
+
 def load_project_data(builddir: Path):
     info_dir = builddir / 'meson-info'
     options = read_json(info_dir / 'intro-buildoptions.json') or []
@@ -802,10 +821,10 @@ class MesonSetupDialog(QDialog):
 
 
 class TranslationsDialog(QDialog):
-    def __init__(self, parent, source_dir: str, font_size: int = _DEFAULT_OUTPUT_FONT_SIZE):
+    def __init__(self, parent, builddir: str, font_size: int = _DEFAULT_OUTPUT_FONT_SIZE):
         super().__init__(parent)
-        self._source_dir = Path(source_dir)
-        self._po_dir = self._source_dir / 'po'
+        self._builddir = Path(builddir)
+        self._targets = find_gettext_targets(self._builddir)
         self._queue = []
         self._line_buf = ['']
         self.setWindowTitle(_('Translations'))
@@ -833,13 +852,20 @@ class TranslationsDialog(QDialog):
             lambda: self._append(bytes(self._proc.readAll()).decode(errors='replace'))
         )
         self._proc.finished.connect(self._on_finished)
+        self._pot_btn.setEnabled('pot' in self._targets)
+        self._update_btn.setEnabled('update_po' in self._targets)
+        if not self._targets:
+            self._append(_(
+                'No translation targets found. This project does not define '
+                'i18n targets with meson.\n'
+            ))
 
     def _append(self, text: str):
         _append_highlighted(self._out, text, self._line_buf)
 
     def _set_running(self, running: bool):
-        self._pot_btn.setEnabled(not running)
-        self._update_btn.setEnabled(not running)
+        self._pot_btn.setEnabled(not running and 'pot' in self._targets)
+        self._update_btn.setEnabled(not running and 'update_po' in self._targets)
         self._close_btn.setEnabled(not running)
 
     def _run_next(self):
@@ -859,37 +885,20 @@ class TranslationsDialog(QDialog):
         else:
             self._run_next()
 
-    def _generate_pot(self):
-        potfiles = self._po_dir / 'POTFILES'
-        if not potfiles.exists():
-            self._append(f'No po/POTFILES found in {self._source_dir}\n')
-            return
-        sources = [line.strip() for line in potfiles.read_text().splitlines() if line.strip()]
-        pot_out = self._po_dir / f'{self._source_dir.name}.pot'
+    def _run_target(self, name: str):
         self._queue = [(
-            'xgettext',
-            ['--language=Python', '--keyword=_', '--add-comments',
-             f'--output={pot_out}'] + sources,
-            self._source_dir,
+            'meson',
+            ['compile', '-C', str(self._builddir), name],
+            self._builddir,
         )]
         self._set_running(True)
         self._run_next()
 
+    def _generate_pot(self):
+        self._run_target(self._targets['pot'])
+
     def _update_po(self):
-        pot = next(self._po_dir.glob('*.pot'), None)
-        if pot is None:
-            self._append('No .pot file found — generate it first.\n')
-            return
-        po_files = sorted(self._po_dir.glob('*.po'))
-        if not po_files:
-            self._append('No .po files found.\n')
-            return
-        self._queue = [
-            ('msgmerge', ['--update', str(po), str(pot)], self._source_dir)
-            for po in po_files
-        ]
-        self._set_running(True)
-        self._run_next()
+        self._run_target(self._targets['update_po'])
 
     def closeEvent(self, event):
         if self._proc.state() != QProcess.NotRunning:
@@ -2196,6 +2205,7 @@ class MainWindow(QMainWindow):
         tools_menu.addSeparator()
         self._translations_action = tools_menu.addAction(_('Translations…'))
         self._translations_action.triggered.connect(self._open_translations)
+        self._translations_action.setEnabled(False)
 
         view_menu = self.menuBar().addMenu(_('View'))
 
@@ -2500,6 +2510,7 @@ class MainWindow(QMainWindow):
         self._reconfigure_action.setEnabled(True)
         self._wipe_action.setEnabled(True)
         self._remove_builddir_action.setEnabled(True)
+        self._translations_action.setEnabled(True)
 
         self._compile_panel.set_builddir(self._builddir)
         self._install_panel.set_builddir(self._builddir)
@@ -2941,6 +2952,7 @@ class MainWindow(QMainWindow):
         self._reconfigure_action.setEnabled(False)
         self._wipe_action.setEnabled(False)
         self._remove_builddir_action.setEnabled(False)
+        self._translations_action.setEnabled(False)
         placeholder = QWidget()
         lbl = QLabel(_('No build directory loaded.\nOpen one via the File menu, or use the Setup tab to run meson setup.'))
         lbl.setAlignment(Qt.AlignCenter)
@@ -3019,6 +3031,7 @@ class MainWindow(QMainWindow):
             self._reconfigure_action.setEnabled(False)
             self._wipe_action.setEnabled(False)
             self._remove_builddir_action.setEnabled(False)
+            self._translations_action.setEnabled(False)
             placeholder = QWidget()
             lbl = QLabel(_('No build directory loaded.\nOpen one via the File menu, or use the Setup tab to run meson setup.'))
             lbl.setAlignment(Qt.AlignCenter)
@@ -3142,12 +3155,9 @@ class MainWindow(QMainWindow):
         QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def _open_translations(self):
-        source_dir = self._source_dir or (
-            str(self._builddir.parent) if self._builddir else None
-        )
-        if not source_dir:
+        if not self._builddir:
             return
-        dlg = TranslationsDialog(self, source_dir, self._output_font_size)
+        dlg = TranslationsDialog(self, str(self._builddir), self._output_font_size)
         dlg.exec_()
 
     def _apply(self):
