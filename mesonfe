@@ -2769,10 +2769,11 @@ class MainWindow(QMainWindow):
         else:
             self._info_project_lbl.setText('')
         if self._builddir and self._source_dir:
+            bld = Path(self._builddir).resolve(strict=False)
             try:
-                rel = Path(self._builddir).relative_to(self._source_dir)
+                rel = bld.relative_to(self._source_dir)
             except ValueError:
-                rel = Path(self._builddir)
+                rel = bld
             self._info_builddir_lbl.setText(f'  {rel}  ')
         elif self._builddir:
             self._info_builddir_lbl.setText(f'  {Path(self._builddir)}  ')

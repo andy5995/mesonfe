@@ -7,6 +7,8 @@
     updating status line, terminal-style
   - Translations: run the project's meson i18n targets (-pot,
     -update-po) instead of reconstructing xgettext/msgmerge commands
+  - Fix build directory shown as "." in the info bar when launched
+    from inside the build directory
 
 - mesonfe v0.1.1:
   - Expand project info bar height
