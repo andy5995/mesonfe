@@ -9,6 +9,8 @@
     -update-po) instead of reconstructing xgettext/msgmerge commands
   - Fix build directory shown as "." in the info bar when launched
     from inside the build directory
+  - Fix "Failed to open URI" when showing the dist folder after
+    launching from inside the build directory
 
 - mesonfe v0.1.1:
   - Expand project info bar height

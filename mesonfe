@@ -1219,7 +1219,7 @@ class DistPanel(QWidget):
             self._show_btn.setEnabled(True)
 
     def _show_in_folder(self):
-        dist_dir = self._builddir / 'meson-dist'
+        dist_dir = (self._builddir / 'meson-dist').resolve(strict=False)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(dist_dir)))
 
     def closeEvent(self, event):
