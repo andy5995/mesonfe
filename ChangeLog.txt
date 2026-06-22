@@ -11,6 +11,9 @@
     from inside the build directory
   - Fix "Failed to open URI" when showing the dist folder after
     launching from inside the build directory
+  - Show the absolute build directory path in a tooltip when hovering
+    over the build directory in the info bar
+  - Show the absolute build directory path in the status bar
   - Add a Cancel button to the Compile, Test, and Dist panels to stop
     a running job, including parallel test and compiler jobs
   - Stop a running job's whole process tree when its output panel is

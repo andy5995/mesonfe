@@ -2567,7 +2567,7 @@ class MainWindow(QMainWindow):
         self._setup_panel.set_build_src_dir(source_dir)
         self.setWindowTitle(_make_window_title(project_name or self._builddir.resolve(strict=False).name))
         self._update_info_toolbar()
-        self._status_label.setText(self._builddir.resolve(strict=False).name)
+        self._status_label.setText(str(self._builddir.resolve(strict=False)))
         defaults = parse_defaults(source_dir) if source_dir else {}
 
         root_w = QWidget()
@@ -2897,10 +2897,14 @@ class MainWindow(QMainWindow):
             except ValueError:
                 rel = bld
             self._info_builddir_lbl.setText(f'  {rel}  ')
+            self._info_builddir_lbl.setToolTip(str(bld))
         elif self._builddir:
             self._info_builddir_lbl.setText(f'  {Path(self._builddir)}  ')
+            self._info_builddir_lbl.setToolTip(
+                str(Path(self._builddir).resolve(strict=False)))
         else:
             self._info_builddir_lbl.setText('')
+            self._info_builddir_lbl.setToolTip('')
         branch = read_git_branch(self._source_dir) if self._source_dir else None
         if branch:
             self._info_branch_lbl.setText(f'  {branch}  ')
@@ -3132,7 +3136,7 @@ class MainWindow(QMainWindow):
             return
         if same_path(text, self._source_dir):
             self._set_tabs_enabled(True)
-            self._status_label.setText(self._builddir.resolve(strict=False).name)
+            self._status_label.setText(str(self._builddir.resolve(strict=False)))
         else:
             self._set_tabs_enabled(False)
             self._tabs.setCurrentWidget(self._setup_panel)
