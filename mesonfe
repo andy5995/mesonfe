@@ -8,6 +8,7 @@ import platform
 import sys
 import json
 import shutil
+import shlex
 import subprocess
 import re
 import signal
@@ -76,7 +77,11 @@ def find_builddir(explicit=None):
             continue
         rc = base / '.mesonferc'
         if rc.exists():
-            for line in rc.read_text().splitlines():
+            try:
+                rc_text = rc.read_text()
+            except OSError:
+                continue
+            for line in rc_text.splitlines():
                 line = line.strip()
                 if line.startswith('#') or '=' not in line:
                     continue
@@ -2133,7 +2138,14 @@ class SetupPanel(QWidget):
             QMessageBox.warning(self.window(), _('Missing fields'),
                                 _('Source and build directories are required.'))
             return
-        args = ['setup', '--reconfigure', bld] + self._args_edit.text().split()
+        try:
+            extra = shlex.split(self._args_edit.text())
+        except ValueError as e:
+            # TRANSLATORS: %s is the error message explaining why parsing failed
+            QMessageBox.warning(self.window(), _('Invalid arguments'),
+                                _('Could not parse extra args: %s') % e)
+            return
+        args = ['setup', '--reconfigure', bld] + extra
         self._out.clear()
         self._line_buf = ['']
         self._run_btn.setEnabled(False)
