@@ -3,12 +3,14 @@ name: CI
 on:
   push:
     branches: [main, trunk]
-    paths: &paths
-      - 'mesonfe'
-      - 'tests/**'
-      - '.github/workflows/ci.yml'
+    paths-ignore: &paths_ignore
+      - '**.md'
+      - 'ChangeLog.txt'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/dependabot.yml'
   pull_request:
-    paths: *paths
+    paths-ignore: *paths_ignore
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -55,3 +57,32 @@ jobs:
 
       - name: Run ruff
         run: ruff check mesonfe
+
+  build:
+    name: Build (meson install)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gettext desktop-file-utils
+          pip install meson ninja PyQt5 platformdirs
+
+      - name: meson setup
+        run: meson setup _build --prefix=/usr
+
+      - name: meson install (staged)
+        run: DESTDIR="$PWD/_stage" meson install -C _build
+
+      - name: Verify the installed package imports
+        run: |
+          pkgdir=$(dirname "$(find "$PWD/_stage" -name _version.py)")
+          PYTHONPATH="$(dirname "$pkgdir")" \
+            python3 -c "from mesonfe._version import VERSION, PKGDATADIR; print('OK', VERSION, PKGDATADIR)"
