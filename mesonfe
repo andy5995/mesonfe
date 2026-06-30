@@ -53,6 +53,19 @@ def _is_build_dir(path: Path) -> bool:
     return (path / 'meson-info').is_dir() or (path / 'meson-private').is_dir()
 
 
+def _data_file(name: str):
+    """Return the path to a bundled data file, or None if not found.
+
+    Checks the in-tree data/ directory first (running from source), then
+    the installed PKGDATADIR.
+    """
+    for p in (Path(__file__).parent / 'data' / name,
+              Path(_PKGDATADIR) / name if _PKGDATADIR else None):
+        if p and p.exists():
+            return p
+    return None
+
+
 def _parse_args():
     parser = argparse.ArgumentParser(
         prog=APP_NAME,
@@ -280,24 +293,6 @@ def load_mesonferc(rc_path: Path) -> dict:
             else:
                 result['configs'][config_name]['options'][key] = val
     return result
-
-
-def load_mesonferc_options(rc_path: Path) -> dict:
-    if not rc_path.exists():
-        return {}
-    opts = {}
-    in_options = False
-    for line in rc_path.read_text().splitlines():
-        line = line.strip()
-        if line == '[options]':
-            in_options = True
-        elif line.startswith('['):
-            in_options = False
-        elif in_options and '=' in line and not line.startswith('#'):
-            key, _, val = line.partition('=')
-            opts[key.strip()] = val.strip()
-    return opts
-
 
 
 _RECENT_PATH = Path(user_config_dir('mesonfe')) / 'recent.json'
@@ -820,11 +815,7 @@ class MesonSetupDialog(QDialog):
         self._btn.setEnabled(True)
 
     def closeEvent(self, event):
-        if self._proc.state() != QProcess.NotRunning:
-            _proc_cancel(self._proc)
-            if not self._proc.waitForFinished(2000):
-                _proc_kill(self._proc)
-                self._proc.waitForFinished(1000)
+        _proc_stop_blocking(self._proc)
         super().closeEvent(event)
 
 
@@ -909,11 +900,7 @@ class TranslationsDialog(QDialog):
         self._run_target(self._targets['update_po'])
 
     def closeEvent(self, event):
-        if self._proc.state() != QProcess.NotRunning:
-            _proc_cancel(self._proc)
-            if not self._proc.waitForFinished(2000):
-                _proc_kill(self._proc)
-                self._proc.waitForFinished(1000)
+        _proc_stop_blocking(self._proc)
         super().closeEvent(event)
 
 
@@ -973,6 +960,21 @@ def _proc_cancel(proc: QProcess, timeout: int = 2000):
             _proc_kill(proc)
 
     QTimer.singleShot(timeout, escalate)
+
+
+def _proc_stop_blocking(proc: QProcess):
+    """Stop a running job and block until it exits, for use in closeEvent.
+
+    Unlike _proc_cancel, escalation to SIGKILL does not depend on the event
+    loop: the widget is closing, so wait synchronously for the process tree
+    to die before returning.
+    """
+    if proc.state() == QProcess.NotRunning:
+        return
+    _proc_cancel(proc)
+    if not proc.waitForFinished(2000):
+        _proc_kill(proc)
+        proc.waitForFinished(1000)
 
 
 class CompilePanel(QWidget):
@@ -1078,11 +1080,7 @@ class CompilePanel(QWidget):
         _proc_cancel(self._proc)
 
     def closeEvent(self, event):
-        if self._proc.state() != QProcess.NotRunning:
-            _proc_cancel(self._proc)
-            if not self._proc.waitForFinished(2000):
-                _proc_kill(self._proc)
-                self._proc.waitForFinished(1000)
+        _proc_stop_blocking(self._proc)
         super().closeEvent(event)
 
 
@@ -1159,11 +1157,7 @@ class InstallPanel(QWidget):
         self._run_btn.setEnabled(True)
 
     def closeEvent(self, event):
-        if self._proc.state() != QProcess.NotRunning:
-            _proc_cancel(self._proc)
-            if not self._proc.waitForFinished(2000):
-                _proc_kill(self._proc)
-                self._proc.waitForFinished(1000)
+        _proc_stop_blocking(self._proc)
         super().closeEvent(event)
 
 
@@ -1210,11 +1204,7 @@ class UninstallPanel(QWidget):
         self._run_btn.setEnabled(True)
 
     def closeEvent(self, event):
-        if self._proc.state() != QProcess.NotRunning:
-            _proc_cancel(self._proc)
-            if not self._proc.waitForFinished(2000):
-                _proc_kill(self._proc)
-                self._proc.waitForFinished(1000)
+        _proc_stop_blocking(self._proc)
         super().closeEvent(event)
 
 
@@ -1318,11 +1308,7 @@ class DistPanel(QWidget):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(dist_dir)))
 
     def closeEvent(self, event):
-        if self._proc.state() != QProcess.NotRunning:
-            _proc_cancel(self._proc)
-            if not self._proc.waitForFinished(2000):
-                _proc_kill(self._proc)
-                self._proc.waitForFinished(1000)
+        _proc_stop_blocking(self._proc)
         super().closeEvent(event)
 
 
@@ -1433,11 +1419,7 @@ class SubprojectsPanel(QWidget):
         self._run_btn.setEnabled(True)
 
     def closeEvent(self, event):
-        if self._proc.state() != QProcess.NotRunning:
-            _proc_cancel(self._proc)
-            if not self._proc.waitForFinished(2000):
-                _proc_kill(self._proc)
-                self._proc.waitForFinished(1000)
+        _proc_stop_blocking(self._proc)
         super().closeEvent(event)
 
 
@@ -1581,11 +1563,7 @@ class TestPanel(QWidget):
             _proc_cancel(self._proc)
 
     def closeEvent(self, event):
-        if self._proc.state() != QProcess.NotRunning:
-            _proc_cancel(self._proc)
-            if not self._proc.waitForFinished(2000):
-                _proc_kill(self._proc)
-                self._proc.waitForFinished(1000)
+        _proc_stop_blocking(self._proc)
         super().closeEvent(event)
 
 
@@ -2168,11 +2146,7 @@ class SetupPanel(QWidget):
             self._skip_next_rc_reload = False
 
     def closeEvent(self, event):
-        if self._proc.state() != QProcess.NotRunning:
-            _proc_cancel(self._proc)
-            if not self._proc.waitForFinished(2000):
-                _proc_kill(self._proc)
-                self._proc.waitForFinished(1000)
+        _proc_stop_blocking(self._proc)
         super().closeEvent(event)
 
 
@@ -2270,13 +2244,9 @@ class MainWindow(QMainWindow):
         self._open_terminal_action.setToolTip(_('Open the build directory in a terminal'))
         _term_icon = QIcon.fromTheme('utilities-terminal')
         if _term_icon.isNull():
-            for _p in [
-                Path(__file__).parent / 'data' / 'terminal.svg',
-                Path(_PKGDATADIR) / 'terminal.svg' if _PKGDATADIR else None,
-            ]:
-                if _p and _p.exists():
-                    _term_icon = QIcon(str(_p))
-                    break
+            _p = _data_file('terminal.svg')
+            if _p:
+                _term_icon = QIcon(str(_p))
         if not _term_icon.isNull():
             self._open_terminal_action.setIcon(_term_icon)
         self._open_terminal_action.triggered.connect(self._open_terminal)
@@ -2316,13 +2286,9 @@ class MainWindow(QMainWindow):
         self._tree_action.setCheckable(True)
         self._tree_action.setToolTip(_('Show build files tree'))
         _tree_icon = QIcon()
-        for _p in [
-            Path(__file__).parent / 'data' / 'tree.svg',
-            Path(_PKGDATADIR) / 'tree.svg' if _PKGDATADIR else None,
-        ]:
-            if _p and _p.exists():
-                _tree_icon = QIcon(str(_p))
-                break
+        _p = _data_file('tree.svg')
+        if _p:
+            _tree_icon = QIcon(str(_p))
         if _tree_icon.isNull():
             _tree_icon = QIcon.fromTheme('view-list-tree')
         if not _tree_icon.isNull():
@@ -3730,13 +3696,9 @@ def main():
     _apply_theme(app, load_settings().get('theme', 'auto'))
     icon = QIcon.fromTheme('mesonfe')
     if icon.isNull():
-        for _p in [
-            Path(__file__).parent / 'data' / 'mesonfe.svg',
-            Path(_PKGDATADIR) / 'mesonfe.svg' if _PKGDATADIR else None,
-        ]:
-            if _p and _p.exists():
-                icon = QIcon(str(_p))
-                break
+        _p = _data_file('mesonfe.svg')
+        if _p:
+            icon = QIcon(str(_p))
     if not icon.isNull():
         app.setWindowIcon(icon)
     builddir = find_builddir(args.builddir)

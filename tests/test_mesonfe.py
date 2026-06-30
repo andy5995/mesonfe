@@ -5,8 +5,6 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 # Stub out PyQt5 before importing the module under test
 for mod in [
     'PyQt5', 'PyQt5.QtWidgets', 'PyQt5.QtCore', 'PyQt5.QtGui',
@@ -27,7 +25,6 @@ parse_cmd_line = _mod.parse_cmd_line
 find_test_suites = _mod.find_test_suites
 find_test_setups = _mod.find_test_setups
 load_project_data = _mod.load_project_data
-load_mesonferc_options = _mod.load_mesonferc_options
 load_mesonferc = _mod.load_mesonferc
 
 
@@ -189,27 +186,6 @@ def test_parse_cmd_line_no_options_section(tmp_path):
     priv.mkdir()
     (priv / 'cmd_line.txt').write_text('[properties]\nfoo = bar\n')
     assert parse_cmd_line(tmp_path) == set()
-
-
-# ---------------------------------------------------------------------------
-# load_mesonferc_options
-# ---------------------------------------------------------------------------
-
-def test_load_mesonferc_options_basic(tmp_path):
-    rc = tmp_path / '.mesonferc'
-    rc.write_text('default_builddir = _build\n\n[options]\nb_sanitize = address,undefined\ngen_protobuf = true\n')
-    assert load_mesonferc_options(rc) == {'b_sanitize': 'address,undefined', 'gen_protobuf': 'true'}
-
-
-def test_load_mesonferc_options_missing_file(tmp_path):
-    assert load_mesonferc_options(tmp_path / '.mesonferc') == {}
-
-
-def test_load_mesonferc_options_no_section(tmp_path):
-    rc = tmp_path / '.mesonferc'
-    rc.write_text('default_builddir = _build\n')
-    assert load_mesonferc_options(rc) == {}
-
 
 
 # ---------------------------------------------------------------------------
