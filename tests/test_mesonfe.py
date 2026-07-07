@@ -22,6 +22,7 @@ read_git_branch = _mod.read_git_branch
 find_builddir = _mod.find_builddir
 parse_defaults = _mod.parse_defaults
 parse_cmd_line = _mod.parse_cmd_line
+read_cmd_line_options = _mod.read_cmd_line_options
 find_test_suites = _mod.find_test_suites
 find_test_setups = _mod.find_test_setups
 load_project_data = _mod.load_project_data
@@ -186,6 +187,49 @@ def test_parse_cmd_line_no_options_section(tmp_path):
     priv.mkdir()
     (priv / 'cmd_line.txt').write_text('[properties]\nfoo = bar\n')
     assert parse_cmd_line(tmp_path) == set()
+
+
+# ---------------------------------------------------------------------------
+# read_cmd_line_options
+# ---------------------------------------------------------------------------
+
+def test_read_cmd_line_options_basic(tmp_path):
+    priv = tmp_path / 'meson-private'
+    priv.mkdir()
+    (priv / 'cmd_line.txt').write_text(
+        '[options]\n'
+        'prefix = /home/andy/.local\n'
+        'c_args = -Werror\n'
+        'b_sanitize = address,undefined\n'
+        '[properties]\n'
+    )
+    assert read_cmd_line_options(tmp_path) == {
+        'prefix': '/home/andy/.local',
+        'c_args': '-Werror',
+        'b_sanitize': 'address,undefined',
+    }
+
+
+def test_read_cmd_line_options_preserves_order(tmp_path):
+    priv = tmp_path / 'meson-private'
+    priv.mkdir()
+    (priv / 'cmd_line.txt').write_text(
+        '[options]\nz = 1\na = 2\nm = 3\n'
+    )
+    assert list(read_cmd_line_options(tmp_path)) == ['z', 'a', 'm']
+
+
+def test_read_cmd_line_options_skips_subproject_options(tmp_path):
+    priv = tmp_path / 'meson-private'
+    priv.mkdir()
+    (priv / 'cmd_line.txt').write_text(
+        '[options]\nb_sanitize = address\nsub:opt = value\n'
+    )
+    assert read_cmd_line_options(tmp_path) == {'b_sanitize': 'address'}
+
+
+def test_read_cmd_line_options_missing_file(tmp_path):
+    assert read_cmd_line_options(tmp_path) == {}
 
 
 # ---------------------------------------------------------------------------
