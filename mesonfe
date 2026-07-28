@@ -2072,7 +2072,7 @@ class SetupPanel(QWidget):
         for name in self._rc_data['configs']:
             self._config_combo.addItem(name, name)
         idx = self._config_combo.findData(matched) if matched else 0
-        self._config_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self._config_combo.setCurrentIndex(max(idx, 0))
         self._config_combo.blockSignals(False)
         has_configs = bool(self._rc_data['configs'])
         self._config_combo.setVisible(has_configs)

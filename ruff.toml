@@ -1,0 +1,20 @@
+# Pin the rule set so a new ruff release cannot silently change what CI
+# enforces. ruff 0.16.0 raised the default rule set from 59 rules to 413,
+# which turned the Lint job red on a commit that touched no Python.
+# These four groups are ruff's pre-0.16 defaults, which mesonfe passes.
+#
+# Upstream pushback on that change, if it is ever reversed:
+# https://github.com/astral-sh/ruff/issues/27177
+#
+# This defers work, it does not remove it. Roughly 14 pre-existing findings
+# are hidden by this pin: blind `except Exception`, try/except/pass,
+# subprocess.run without check=, percent-format strings, unsorted imports.
+# To see them again without changing this file:
+#
+#     ruff check --isolated --no-cache mesonfe
+#
+# When widening, add rule groups deliberately and fix what they report,
+# rather than deleting this file and inheriting whatever a future ruff
+# release enables by default.
+[lint]
+select = ["E4", "E7", "E9", "F"]
