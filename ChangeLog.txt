@@ -1,25 +1,26 @@
-- mesonfe v0.1.2 (in-progress):
-  - Enable PEP 563 lazy annotations so the script imports on
-    Python 3.9 (needed for Slackware 15.0)
-  - Add module docstring to mesonfe/__init__.py so it isn't
-    zero-length (silences a Slackware makepkg warning)
+- mesonfe v0.1.2 (2026-07-27):
+  - Add a Cancel button to the Compile, Test, and Dist panels to stop
+    a running job, including parallel test and compiler jobs
+  - Setup tab now reflects the currently-open build directory,
+    selecting the matching .mesonferc config or the build's own
+    options
+  - Stop a running job's whole process tree when its output panel is
+    closed, so ninja and test processes are not left running
   - Collapse ninja progress lines in the compile output into a single
     updating status line, terminal-style
-  - Translations: run the project's meson i18n targets (-pot,
-    -update-po) instead of reconstructing xgettext/msgmerge commands
+  - Show the absolute build directory path in the status bar
+  - Show the absolute build directory path in a tooltip when hovering
+    over the build directory in the info bar
   - Fix build directory shown as "." in the info bar when launched
     from inside the build directory
   - Fix "Failed to open URI" when showing the dist folder after
     launching from inside the build directory
-  - Show the absolute build directory path in a tooltip when hovering
-    over the build directory in the info bar
-  - Show the absolute build directory path in the status bar
-  - Add a Cancel button to the Compile, Test, and Dist panels to stop
-    a running job, including parallel test and compiler jobs
-  - Stop a running job's whole process tree when its output panel is
-    closed, so ninja and test processes are not left running
+  - Parse Setup extra args with shell quoting so quoted values with
+    spaces stay a single argument
+  - Enable PEP 563 lazy annotations so the script imports on
+    Python 3.9 (needed for Slackware 15.0)
 
-- mesonfe v0.1.1:
+- mesonfe v0.1.1 (2026-05-20):
   - Expand project info bar height
   - Add search bar to all output panels, with Edit menu entries for
     Find, Find Next, and Find Previous
@@ -28,5 +29,5 @@
   - Show git branch in the project info bar when the source tree is a
     git checkout
 
-- mesonfe v0.1.0:
+- mesonfe v0.1.0 (2026-05-16):
   - Initial release
